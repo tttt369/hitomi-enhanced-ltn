@@ -8,48 +8,58 @@
     <style>
         body {margin: 0; background-color: #212529;}
         input {background-color: #212529; border: 1px solid #495057; border-radius: 0.375rem;}
+        i {color: white;}
+        tr th {width: 100%;}
         .btn_gren_out {color: #198754; background-color: transparent; border: 1px solid #198754; border-radius: 0.375rem;}
         .btn_gren_out:hover {color: white; background-color: #198754;}
         .btn_gren {color: white; background-color: #198754; border: 1px solid #198754; border-radius: 0.375rem;}
         .btn_red {color: white; background-color: #a13643; border: 1px solid #a13643; border-radius: 0.375rem;}
-        i {color: white;}
+        .badge_grey {background-color: #6c757d; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
+        .badge_blue {background-color: #0d6efd; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
 
-        .xflex {display: flex; flex-direction: column; justify-content: center;}
+        .Container {display: flex; flex-direction: column; justify-content: center;}
 
-        .xdiv {display: flex; flex-direction: row; justify-content: space-between; width: 100%; height: 102px; background-color: #2b3035;}
-        .xdiv img {margin: auto auto auto 0;}
+        .NavbarContainer {display: flex; flex-direction: row; justify-content: space-between; width: 100%; height: 100px; background-color: #2b3035;}
+        .NavbarContainer img {margin: auto auto auto 0;}
 
-        .xadiv {display: flex; flex-direction: column; justify-content: space-between;}
-        .xadiv button {margin-right: 5px;}
+        .InputContainer {display: flex; flex-direction: column; justify-content: space-between;}
+        .InputContainer button {margin-right: 5px;}
 
-        .xa1div {display: flex; flex: 1; flex-direction: row; justify-content: space-between; margin: 3% 3% 3% 0; width: 100%;}
-        .xa2div {display: flex; flex: 1; flex-direction: row; justify-content: space-between; margin: 3% 3% 3% 0; width: 100%;}
+        .SearchContainer {display: flex; flex: 1; flex-direction: row; justify-content: space-between; margin: 3% 3% 3% 0; width: 100%;}
+        .DefaultQueryContainer {display: flex; flex: 1; flex-direction: row; justify-content: space-between; margin: 3% 3% 3% 0; width: 100%;}
 
-        .ydiv {display: flex; justify-content: space-between; align-items: center; height: 35px; width: 100%; background-color: #343a40;}
-        .yadiv {display: flex; height: 100%;}
-        .yadiv button{width: 40px;}
+        .PickerContainer {display: flex; justify-content: space-between; align-items: center; height: 35px; width: 100%; background-color: #343a40;}
+        .BtnContainer {display: flex; height: 100%;}
+        .BtnContainer button{width: 40px;}
         #eye {margin-left: 1%;}
-        .zdiv {height: 1000px; width: 950px; background-color: #242528; margin: 48px auto auto auto;}
+        .CardContainer {display: flex; flex-wrap: wrap; justify-content: space-around; height: 1000px; color: white; background-color: #242528; margin: 5% 3% auto 3%;}
+        .CardTableContainer {display: flex; flex-direction: column; align-items: center; overflow-x: auto;}
+        .CardTitle {font-weight: bold; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; word-break: break-all; margin: 2% auto 7% auto;}
+        .CardTagsContainer {scrollbar-width: none; display: flex; overflow-x: auto; white-space: nowrap; background-color: #00000038; margin: 3%; width: 100%;}
+        .CardTagsContainer a {margin-right: 5%; text-decoration: none;}
+        #page {margin-left: 5%; width: fit-content;}
+        .Card {display: flex; flex-direction: column; flex: 1 1 194px; max-width: 220px; height: 475px; margin: 1%; background-color: #212529; overflow: hidden; justify-content: space-around;}
+        .Card img {height: 220px;}
     </style>
 </head>
 <body>
-    <div class="xflex">
-        <div class="xdiv">
+    <div class="Container">
+        <div class="NavbarContainer">
             <img src="//ltn.gold-usergeneratedcontent.net/logo.png"></img>
-            <div class="xadiv">
-                <div class="xa1div">
+            <div class="InputContainer">
+                <div class="SearchContainer">
                     <input type="text">
                     <button class="btn_gren_out" type="button">Search</button>
                 </div>
-                <div class="xa2div">
+                <div class="DefaultQueryContainer">
                     <input type="text">
                     <button class="btn_gren_out" type="button">Save</button>
                 </div>
             </div>
         </div>
-        <div class="ydiv">
+        <div class="PickerContainer">
             <i id="eye" class="bi bi-eyedropper"></i>
-            <div class="yadiv">
+            <div class="BtnContainer">
                 <button class="btn_gren">
                     <i class="bi bi-plus-circle-fill"></i>
                 </button>
@@ -58,7 +68,43 @@
                 </button>
             </div>
         </div>
-        <div class="zdiv"></div>
+        <div class="CardContainer">
+            <div class="Card">
+                <img src="./img_avatar.png"></img>
+                <div class="CardTableContainer">
+                    <a class="CardTitle">aaaaaaaaaaaaaaaaa</a>
+                    <table>
+                        <tr>
+                            <td>language</td>
+                            <td>:</td>
+                            <td>日本語</td>
+                        </tr>
+                        <tr>
+                            <td>type</td>
+                            <td>:</td>
+                            <td>image set</td>
+                        </tr>
+                        <tr>
+                            <td>artist</td>
+                            <td>:</td>
+                            <td>series</td>
+                        </tr>
+                        <tr>
+                            <td>series</td>
+                            <td>:</td>
+                            <td>idon't know</td>
+                        </tr>
+                    </table>
+                </div>
+                <a id="page" class="badge_grey">650p</a>
+                <div class="CardTagsContainer">
+                    <a class="badge_blue">test</a>
+                    <a class="badge_blue">test</a>
+                    <a class="badge_blue">test</a>
+                    <a class="badge_blue">test</a>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>
