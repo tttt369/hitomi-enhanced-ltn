@@ -3,13 +3,13 @@
 // @namespace    Violentmonkey Scripts
 // @match        https://ltn.gold-usergeneratedcontent.net/*
 // @grant        none
+// @require      https://raw.github.com/emn178/js-sha256/master/build/sha256.min.js
 // @version      1.2
 // @author       -
 // ==/UserScript==
 
 (async function() {
     'use strict';
-
 
     const html = `
     <!DOCTYPE html>
@@ -24,6 +24,7 @@
             input {background-color: #212529; border: 1px solid #495057; border-radius: 0.375rem;}
             svg {color: white;}
             tr th {width: 100%;}
+            strong {color: cyan;}
             .btn_gren_out {color: #198754; background-color: transparent; border: 1px solid #198754; border-radius: 0.375rem;}
             .btn_gren_out:hover {color: white; background-color: #198754;}
             .btn_gren {color: white; background-color: #198754; border: 1px solid #198754; border-radius: 0.375rem;}
@@ -50,6 +51,11 @@
             .page {margin-left: 5%; width: fit-content;}
             .Card {display: flex; flex-direction: column; flex: 1 1 194px; max-width: 220px; height: 475px; margin: 1%; background-color: #212529; overflow: hidden; justify-content: space-between; border-radius:0.375rem; border:1px solid #343a40}
             .Card img {height: 220px; object-fit: cover; width: 100%;}
+            .PageContainer {height: 100px; background-color: white;}
+            .SuggestionContainer {margin: 0; position: absolute; z-index: 1; background-color: #212529; color: darkgray; border: 1px solid grey; border-radius: 0.375rem;}
+            .Suggestion { display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid; font-weight: 700;}
+            .SuggestionText {flex: 1; text-overflow: ellipsis; overflow: hidden; text-overflow: ellipsis; }
+
         </style>
     </head>
     <body>
@@ -59,7 +65,7 @@
                 <div class="InputContainer">
                     <div class="SearchContainer">
                         <input type="text">
-                        <button class="btn_gren_out" type="button">Search</button>
+                        <button class="btn_gren_out SearchButton" type="button">Search</button>
                     </div>
                     <div class="DefaultQueryContainer">
                         <input type="text">
@@ -91,6 +97,7 @@
     `;
 
     const FETCH_PAGENUM = false
+    const INF_SCROLL = true
     const SCROLL_THRESHOLD = 0.7
     const galleries_per_page = 25;
     const domain = 'ltn.gold-usergeneratedcontent.net';
@@ -170,15 +177,16 @@
         });
     };
 
-    async function fetch_gallery() {
+    async function fetch_gallery(ids_list = Object.keys(nozomi)) {
         const gallery_list = [];
-        const nozomi_keys_list = Object.keys(nozomi)
-        const sliced_list = fetch_cout === 0 ? nozomi_keys_list : nozomi_keys_list.slice(0, galleries_per_page)
-        const end = Math.min(sliced_list.length, galleries_per_page);
+        if (!ids_list) {
+            ids_list = fetch_cout === 0 ? ids_list : ids_list.slice(0, galleries_per_page)
+        }
+        const end = Math.min(ids_list.length, galleries_per_page);
 
         const promises = [];
         for (let i = 0; i < end; ++i) {
-            const galleryId = sliced_list[i];
+            const galleryId = ids_list[i];
             const url = `//${domain}/galleryblock/${galleryId}.html`;
             promises.push(xhr_get(url));
         }
@@ -192,7 +200,7 @@
         return gallery_list;
     }
 
-    function generate_card(gallery) {
+    function generate_card(gallery, div_CardC) {
         return new Promise((resolve) => {
             function create_table(type, listOrItem, container, defaultText = 'N/A') {
                 const isList = Array.isArray(listOrItem) || listOrItem instanceof NodeList;
@@ -248,7 +256,6 @@
             const reNum = url.match(/.*-(\d+)\.html/);
             const id = reNum?.[1];
 
-            const div_CardC = document.querySelector("div.CardContainer")
             const div_Card = document.createElement("div")
             div_Card.className = "Card"
 
@@ -286,11 +293,214 @@
         )
     };
 
-    async function inf_scroll() {
-        const scrollPercentage = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
-        if (scrollPercentage >= SCROLL_THRESHOLD && !fetching) {
-            await load()
+    async function search(text) {
+        DataView.prototype.getUint64 = function(byteOffset, littleEndian) {
+            // split 64-bit number into two 32-bit (4-byte) parts
+            const left = this.getUint32(byteOffset, littleEndian);
+            const right = this.getUint32(byteOffset + 4, littleEndian);
+
+            // combine the two 32-bit values
+            const combined = littleEndian ? left + 2 ** 32 * right : 2 ** 32 * left + right;
+
+            if (!Number.isSafeInteger(combined))
+                console.warn(combined, 'exceeds MAX_SAFE_INTEGER. Precision may be lost');
+
+            return combined;
         }
+
+        const query = text
+        const key = new Uint8Array(sha256.array(query).slice(0, 4))
+        const version_url = `https://${domain}/galleriesindex/version?_=${(new Date).getTime()}`
+        const galleries_index_version = await xhr_get(version_url)
+
+        async function fetch_index(field = "galleries", address = 0, step = 464, ext = '.index') {
+            let url = '';
+            if (field === 'galleries') {
+                url = `https://${domain}/galleriesindex/galleries.${galleries_index_version}${ext}`
+            } //else if (field === 'languages') {
+            //     url = '//' + domain + '/' + languages_index_dir + '/languages.' + languages_index_version + '.index';
+            // } else if (field === 'nozomiurl') {
+            //     url = '//' + domain + '/' + nozomiurl_index_dir + '/nozomiurl.' + nozomiurl_index_version + '.index';
+            // }
+            const nodedata = await xhr_get(url, 'arraybuffer', { 'Range': `bytes=${address}-${address + step - 1}` });
+            return nodedata
+        }
+
+        function decode_node(xhr_res) {
+            let pos = 0;
+            let node = {
+                keys: [],
+                datas: [],
+                subnode_addresses: [],
+            };
+
+            const eightarray = new Uint8Array(xhr_res);
+            const view = new DataView(eightarray.buffer);
+            const number_of_keys = view.getInt32(pos, false /* big-endian */);
+            pos += 4;
+
+            let keys = [];
+            for (let i = 0; i < number_of_keys; i++) {
+                const key_size = view.getInt32(pos, false /* big-endian */);
+                if (!key_size || key_size > 32) {
+                    console.error("fatal: !key_size || key_size > 32");
+                    return;
+                }
+                pos += 4;
+                keys.push(eightarray.slice(pos, pos + key_size));
+                pos += key_size;
+            }
+
+            const number_of_datas = view.getInt32(pos, false /* big-endian */);
+            pos += 4;
+
+            let datas = [];
+            for (let i = 0; i < number_of_datas; i++) {
+                const offset = view.getUint64(pos, false /* big-endian */);
+                pos += 8;
+
+                const length = view.getInt32(pos, false /* big-endian */);
+                pos += 4;
+
+                datas.push([offset, length]);
+            }
+
+            const B = 16;
+            const number_of_subnode_addresses = B + 1;
+
+            let subnode_addresses = [];
+            for (let i = 0; i < number_of_subnode_addresses; i++) {
+                let subnode_address = view.getUint64(pos, false /* big-endian */);
+                pos += 8;
+
+                subnode_addresses.push(subnode_address);
+            }
+
+            node.keys = keys;
+            node.datas = datas;
+            node.subnode_addresses = subnode_addresses;
+            return node;
+        }
+
+        function compare_key(node) {
+            function compare_arraybuffers(dv1, dv2) {
+                const top = Math.min(dv1.byteLength, dv2.byteLength);
+                for (let i = 0; i < top; i++) {
+                    if (dv1[i] < dv2[i]) {
+                        return -1;
+                    } else if (dv1[i] > dv2[i]) {
+                        return 1;
+                    }
+                }
+                return 0;
+            };
+            function is_leaf() {
+                for (let i = 0; i < node.subnode_addresses.length; i++) {
+                    if (node.subnode_addresses[i]) {
+                        return 0;
+                    }
+                }
+                return 1;
+            };
+
+            let cmp_result = -1;
+            let i;
+            for (i = 0; i < node.keys.length; i++) {
+                cmp_result = compare_arraybuffers(key, node.keys[i]);
+                if (cmp_result <= 0) {
+                    break;
+                }
+            }
+            return [!cmp_result, i, is_leaf()];
+        };
+
+        async function b_tree(node) {
+            let index_node = undefined
+            let [there, where, isleaf] = compare_key(node)
+            if (there) {
+                return node.datas[where];
+            } else if (isleaf) {
+                return Error
+            }
+            if (node.subnode_addresses[where] == 0) {
+                return Error
+            }
+            index_node = await fetch_index(undefined, node.subnode_addresses[where])
+            node = decode_node(index_node)
+            return await b_tree(node)
+        }
+
+        const index_node = await fetch_index()
+        const node = decode_node(index_node)
+        const res = await b_tree(node)
+        let [offset, length] = res;
+
+        const inbuf = await fetch_index(undefined, offset, length, ".data")
+        let pos = 0;
+        const eightbuf = new Uint8Array(inbuf);
+        let view = new DataView(eightbuf.buffer);
+        let number_of_galleryids = view.getInt32(pos, false /* big-endian */);
+        pos += 4;
+
+        const res_ids = []
+        for (let i = 0; i < number_of_galleryids; ++i) {
+            res_ids.push(view.getInt32(pos, false /* big-endian */));
+            pos += 4;
+        }
+        return res_ids
+    }
+
+    async function get_search_suggestion(input, divSuggestionC) {
+        function encode_search_query_for_url(s) {
+            return s.replace(/[ \/\.]/g, function(m) {
+                return {
+                    ' ': '_',
+                    '/': 'slash',
+                    '.': 'dot',
+                }[m];
+            });
+        }
+
+        const query = input.replace(/_/g, ' ');
+        const re = new RegExp(query, 'gi');
+        let field = 'global', term = query
+        if (query.indexOf(':') > -1) {
+            const sides = query.split(/:/);
+            field = sides[0];
+            term = sides[1];
+        }
+
+        const chars = term.split('').map(encode_search_query_for_url);
+        let url = `//tagindex.hitomi.la/${field}`;
+        if (chars.length) {
+            url += `/${chars.join('/')}`;
+        }
+        url += '.json';
+
+        const suggestions = await xhr_get(url, "json")
+        suggestions.forEach(suggestion => {
+            const aS = document.createElement("a")
+            const spanStext = document.createElement("span")
+            const spanScount = document.createElement("span")
+
+            aS.className = "Suggestion"
+            spanStext.className = "SuggestionText"
+            spanScount.className = "SuggestionCount"
+
+            const final_str = suggestion[0].replace(re, function(str) { return '<strong>' + str + '</strong>' });
+
+            spanStext.innerHTML = `${final_str} (${suggestion[2]})`; // final_strとsuggestion[2]を表示
+            spanScount.textContent = suggestion[1]
+
+            aS.appendChild(spanStext)
+            aS.appendChild(spanScount)
+            divSuggestionC.appendChild(aS)
+        })
+        const searchContainer = document.querySelector('.SearchContainer');
+        const rect = searchContainer.getBoundingClientRect();
+        divSuggestionC.style.left = rect.left + 'px';
+        divSuggestionC.style.top = rect.height + rect.top + 'px';
+        divSuggestionC.style.width = rect.width + 'px';
     }
 
     document.documentElement.innerHTML = html;
@@ -302,20 +512,59 @@
         document.head.appendChild(script);
     });
 
+    let ids_list
     async function load() {
         fetching = true
         await fetch_nozomi();
-        const gallery_list = await fetch_gallery();
+        const gallery_list = await fetch_gallery(ids_list);
+        gallery_list.reverse()
+
+        const div_CardC = document.querySelector("div.CardContainer")
+        if (ids_list) div_CardC.innerHTML = ""
 
         let promises = []
         gallery_list.forEach(gallery => {
-            promises.push(generate_card(gallery))
+            promises.push(generate_card(gallery, div_CardC))
         });
+
         await Promise.allSettled(promises);
         fetching = false
+
+        if (!INF_SCROLL) {
+            const divPageC = document.createElement("div")
+            divPageC.className = "PageContainer"
+            document.body.appendChild(divPageC)
+            return
+        }
+
+        window.addEventListener('scroll', async function() {
+            const scrollPercentage = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
+            if (scrollPercentage >= SCROLL_THRESHOLD && !fetching) {
+                await load(ids_list)
+            }
+        });
     }
 
     await load()
 
-    window.addEventListener('scroll', inf_scroll);
+    const SearchInput = document.querySelector('div.SearchContainer input');
+    let divSuggestionC = document.querySelector("div.SuggestionContainer")
+    SearchInput.addEventListener('input', function() {
+        if (!divSuggestionC) {
+            const SearchC = document.querySelector('div.SearchContainer');
+            divSuggestionC = document.createElement("div")
+            divSuggestionC.className = "SuggestionContainer"
+            SearchC.appendChild(divSuggestionC)
+        }
+        if (divSuggestionC.textContent) {
+            divSuggestionC.textContent = ""
+        }
+        get_search_suggestion(SearchInput.value, divSuggestionC);
+    });
+
+    const SearchButton = document.querySelector("button.SearchButton")
+    SearchButton.addEventListener('click', async function() {
+        ids_list = await search(SearchInput.value)
+        await load(ids_list)
+    });
 })();
