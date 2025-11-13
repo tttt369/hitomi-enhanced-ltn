@@ -10,7 +10,6 @@
 
 (async function() {
     'use strict';
-
     const html = `
     <!DOCTYPE html>
     <html>
@@ -96,45 +95,21 @@
     </html>
     `;
 
-    const FETCH_PAGENUM = false
-    const INF_SCROLL = true
-    const SCROLL_THRESHOLD = 0.7
-    const galleries_per_page = 25;
-    const domain = 'ltn.gold-usergeneratedcontent.net';
-    const nozomi = {};
-    let fetching = false
-    let fetch_cout = 0
-
     async function fetch_nozomi() {
-        const start_bytes = 100 * fetch_cout
+        fetching = true
+        const start_bytes = 100 * fetch_count
         const end_bytes = start_bytes + 99
         const arrayBuffer = await xhr_get('index-all.nozomi', 'arraybuffer', { 'Range': `bytes=${start_bytes}-${end_bytes}` });
         const view = new DataView(arrayBuffer);
         const totalBytes = view.byteLength;
 
-        await filter_contents(totalBytes, view)
-
-        console.log('nozomi IDs sample:', Object.entries(nozomi).slice(0, 10));
+        const ids_obj = await filter_contents(totalBytes, view)
+        console.log('ids_obj IDs sample:', Object.entries(ids_obj));
+        return ids_obj
     }
 
-    function xhr_get(url, responseType = 'text', headers = {}) {
-        return new Promise((resolve) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', url, true);
-            xhr.responseType = responseType;
-            for (const [key, value] of Object.entries(headers)) {
-                xhr.setRequestHeader(key, value);
-            }
-            xhr.onload = () => {
-                if (xhr.status === 200 || xhr.status === 206) {
-                    resolve(xhr.response);
-                }
-            };
-            xhr.send();
-        });
-    }
-
-    async function filter_contents(xbytes, view) {
+    async function filter_contents(xbytes, view, search) {
+        const ids_obj = {}
         const promises = []
 
         function fetch_page_num(id) {
@@ -161,6 +136,7 @@
         }
 
         for (let i = 0; i < xbytes; i += 4) {
+            if (search && (i + search_fetch_count) === 0) continue
             const id = view.getUint32(i, false);
             promises.push(fetch_page_num(id));
         };
@@ -169,20 +145,35 @@
             if (r.status === 'fulfilled' && r.value) {
                 const keys = Object.keys(r.value)
                 const values = Object.values(r.value)
-                if (!FETCH_PAGENUM) nozomi[keys] = null
-                if (values > 20) {
-                    nozomi[keys] = values;
+                if (!FETCH_PAGENUM) ids_obj[keys] = null
+                if (values > MIN_PAGE) {
+                    ids_obj[keys] = values;
                 }
             }
         });
+        return ids_obj
     };
 
-    async function fetch_gallery(ids_list = Object.keys(nozomi)) {
+    function xhr_get(url, responseType = 'text', headers = {}) {
+        return new Promise((resolve) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.responseType = responseType;
+            for (const [key, value] of Object.entries(headers)) {
+                xhr.setRequestHeader(key, value);
+            }
+            xhr.onload = () => {
+                if (xhr.status === 200 || xhr.status === 206) {
+                    resolve(xhr.response);
+                }
+            };
+            xhr.send();
+        });
+    }
+
+    async function fetch_gallery(ids_list) {
         const gallery_list = [];
-        if (!ids_list) {
-            ids_list = fetch_cout === 0 ? ids_list : ids_list.slice(0, galleries_per_page)
-        }
-        const end = Math.min(ids_list.length, galleries_per_page);
+        const end = Math.min(ids_list.length, GALLERIES_PER_PAGE);
 
         const promises = [];
         for (let i = 0; i < end; ++i) {
@@ -196,11 +187,11 @@
             if (r.status === 'fulfilled') gallery_list.push(r.value);
         });
 
-        ++fetch_cout
-        return gallery_list;
+        ++fetch_count
+        return gallery_list.reverse();
     }
 
-    function generate_card(gallery, div_CardC) {
+    function generate_card(gallery, ids_obj, div_CardC) {
         return new Promise((resolve) => {
             function create_table(type, listOrItem, container, defaultText = 'N/A') {
                 const isList = Array.isArray(listOrItem) || listOrItem instanceof NodeList;
@@ -286,7 +277,7 @@
             create_table("type", type, table)
             create_table("artist", artistList, table)
             create_table('series', seriesList, table)
-            a_page.textContent = nozomi[id] ? `${nozomi[id]}p` : "N/A"
+            a_page.textContent = ids_obj[id] ? `${ids_obj[id]}p` : "N/A"
             generate_tags(tags, div_tagC)
             resolve()
         }
@@ -308,11 +299,6 @@
             return combined;
         }
 
-        const query = text
-        const key = new Uint8Array(sha256.array(query).slice(0, 4))
-        const version_url = `https://${domain}/galleriesindex/version?_=${(new Date).getTime()}`
-        const galleries_index_version = await xhr_get(version_url)
-
         async function fetch_index(field = "galleries", address = 0, step = 464, ext = '.index') {
             let url = '';
             if (field === 'galleries') {
@@ -326,7 +312,8 @@
             return nodedata
         }
 
-        function decode_node(xhr_res) {
+        function decode_node(bytes_list) {
+            fetching = true
             let pos = 0;
             let node = {
                 keys: [],
@@ -334,7 +321,7 @@
                 subnode_addresses: [],
             };
 
-            const eightarray = new Uint8Array(xhr_res);
+            const eightarray = new Uint8Array(bytes_list);
             const view = new DataView(eightarray.buffer);
             const number_of_keys = view.getInt32(pos, false /* big-endian */);
             pos += 4;
@@ -383,6 +370,9 @@
         }
 
         function compare_key(node) {
+            let i;
+            let cmp_result = -1;
+
             function compare_arraybuffers(dv1, dv2) {
                 const top = Math.min(dv1.byteLength, dv2.byteLength);
                 for (let i = 0; i < top; i++) {
@@ -403,8 +393,6 @@
                 return 1;
             };
 
-            let cmp_result = -1;
-            let i;
             for (i = 0; i < node.keys.length; i++) {
                 cmp_result = compare_arraybuffers(key, node.keys[i]);
                 if (cmp_result <= 0) {
@@ -430,24 +418,33 @@
             return await b_tree(node)
         }
 
+        searching = true
+        fetching = true
+        const key = new Uint8Array(sha256.array(text).slice(0, 4))
+        const version_url = `https://${domain}/galleriesindex/version?_=${(new Date).getTime()}`
+        const galleries_index_version = await xhr_get(version_url)
+
         const index_node = await fetch_index()
         const node = decode_node(index_node)
         const res = await b_tree(node)
         let [offset, length] = res;
 
-        const inbuf = await fetch_index(undefined, offset, length, ".data")
         let pos = 0;
+        const end = search_fetch_count === 0 ? (GALLERIES_PER_PAGE * 4) + 4 : (GALLERIES_PER_PAGE * 4)
+        const start = offset + (end + 4) * search_fetch_count
+        const inbuf = await fetch_index(undefined, start, end, ".data")
+        // const inbuf = await fetch_index(undefined, offset, length, ".data")
         const eightbuf = new Uint8Array(inbuf);
-        let view = new DataView(eightbuf.buffer);
-        let number_of_galleryids = view.getInt32(pos, false /* big-endian */);
+
+        const view = new DataView(eightbuf.buffer);
+        const totalBytes = view.byteLength;
+        // let number_of_galleryids = view.getInt32(pos, false /* big-endian */);
         pos += 4;
 
-        const res_ids = []
-        for (let i = 0; i < number_of_galleryids; ++i) {
-            res_ids.push(view.getInt32(pos, false /* big-endian */));
-            pos += 4;
-        }
-        return res_ids
+        const ids_obj = await filter_contents(totalBytes, view, true)
+        console.log('ids_obj IDs sample:', Object.entries(ids_obj));
+        ++search_fetch_count
+        return ids_obj
     }
 
     async function get_search_suggestion(input, divSuggestionC) {
@@ -503,6 +500,34 @@
         divSuggestionC.style.width = rect.width + 'px';
     }
 
+    async function load(ids_obj, reset_container = false) {
+        const div_CardC = document.querySelector("div.CardContainer")
+        if (reset_container) div_CardC.innerHTML = "";
+
+        const ids_list = Object.keys(ids_obj)
+        const gallery_list = await fetch_gallery(ids_list);
+
+        let promises = []
+        gallery_list.forEach(gallery => {
+            promises.push(generate_card(gallery, ids_obj, div_CardC))
+        });
+
+        await Promise.allSettled(promises);
+        fetching = false
+
+    }
+    const FETCH_PAGENUM = false
+    const INF_SCROLL = true
+    const SCROLL_THRESHOLD = 0.7
+    const MIN_PAGE = 0
+    const GALLERIES_PER_PAGE = 25;
+    const domain = 'ltn.gold-usergeneratedcontent.net';
+    let fetching = false
+    let searching = false
+    let searching_text = ""
+    let fetch_count = 0
+    let search_fetch_count = 0
+
     document.documentElement.innerHTML = html;
     await new Promise((resolve,) => {
         const script = document.createElement('script');
@@ -512,40 +537,27 @@
         document.head.appendChild(script);
     });
 
-    let ids_list
-    async function load() {
-        fetching = true
-        await fetch_nozomi();
-        const gallery_list = await fetch_gallery(ids_list);
-        gallery_list.reverse()
-
-        const div_CardC = document.querySelector("div.CardContainer")
-        if (ids_list) div_CardC.innerHTML = ""
-
-        let promises = []
-        gallery_list.forEach(gallery => {
-            promises.push(generate_card(gallery, div_CardC))
-        });
-
-        await Promise.allSettled(promises);
-        fetching = false
-
-        if (!INF_SCROLL) {
-            const divPageC = document.createElement("div")
-            divPageC.className = "PageContainer"
-            document.body.appendChild(divPageC)
-            return
-        }
-
-        window.addEventListener('scroll', async function() {
-            const scrollPercentage = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
-            if (scrollPercentage >= SCROLL_THRESHOLD && !fetching) {
-                await load(ids_list)
-            }
-        });
+    if (!INF_SCROLL) {
+        const divPageC = document.createElement("div")
+        divPageC.className = "PageContainer"
+        document.body.appendChild(divPageC)
     }
 
-    await load()
+    let ids_obj = await fetch_nozomi();
+    await load(ids_obj)
+
+    window.addEventListener('scroll', async function() {
+        if (!INF_SCROLL) {
+            return
+        }
+        const scrollPercentage = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
+        if (scrollPercentage >= SCROLL_THRESHOLD && !fetching) {
+            if (searching) ids_obj = await search(searching_text);
+            if (!searching) ids_obj = await fetch_nozomi();
+
+            await load(ids_obj)
+        }
+    });
 
     const SearchInput = document.querySelector('div.SearchContainer input');
     let divSuggestionC = document.querySelector("div.SuggestionContainer")
@@ -564,7 +576,8 @@
 
     const SearchButton = document.querySelector("button.SearchButton")
     SearchButton.addEventListener('click', async function() {
-        ids_list = await search(SearchInput.value)
-        await load(ids_list)
+        searching_text = SearchInput.value
+        ids_obj = await search(searching_text)
+        await load(ids_obj, true)
     });
 })();
