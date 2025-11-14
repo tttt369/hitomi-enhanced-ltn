@@ -7,6 +7,7 @@
 // @version      1.2
 // @author       -
 // ==/UserScript==
+// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
 
 (async function() {
     'use strict';
@@ -95,18 +96,34 @@
     </html>
     `;
 
-    async function fetch_nozomi() {
-        fetching = true
-        const start_bytes = 100 * fetch_count
-        const end_bytes = start_bytes + 99
-        const arrayBuffer = await xhr_get('index-all.nozomi', 'arraybuffer', { 'Range': `bytes=${start_bytes}-${end_bytes}` });
-        const view = new DataView(arrayBuffer);
-        const totalBytes = view.byteLength;
+    // async function fetch_index(url, address = 0, step = GALLERIES_PER_PAGE * 4, fetch_count = 0, isres = false) {
+    //     fetching = true
+    //     address = step * fetch_count
+    //
+    //     let nodedata = await xhr_get(url, 'arraybuffer', { 'Range': `bytes=${address}-${address + step - 1}` });
+    //     if (!isnozomi) {
+    //         nodedata = new Uint8Array(nodedata);
+    //         if (!isres) return byte_array
+    //     }
+    //     if (isnozomi) view = new DataView(nodedata);
+    //     if (!isnozomi) view = new DataView(nodedata.buffer);
+    //     const totalBytes = view.byteLength;
+    //
+    //     const ids_obj = await filter_contents(totalBytes, view, !isnozomi)
+    //     console.log('ids_obj IDs sample:', Object.entries(ids_obj));
+    // }
 
-        const ids_obj = await filter_contents(totalBytes, view)
-        console.log('ids_obj IDs sample:', Object.entries(ids_obj));
-        return ids_obj
-    }
+    // async function fetch_nozomi(area = "index") {
+    //     const start_bytes = (GALLERIES_PER_PAGE * 4) * fetch_count
+    //     const end_bytes = start_bytes + 99
+    //     const arrayBuffer = await xhr_get('index-all.nozomi', 'arraybuffer', { 'Range': `bytes=${start_bytes}-${end_bytes}` });
+    //     const view = new DataView(arrayBuffer);
+    //     const totalBytes = view.byteLength;
+    //
+    //     const ids_obj = await filter_contents(totalBytes, view)
+    //     console.log('ids_obj IDs sample:', Object.entries(ids_obj));
+    //     return ids_obj
+    // }
 
     async function filter_contents(xbytes, view, search) {
         const ids_obj = {}
@@ -122,7 +139,7 @@
                 }
 
                 const script = document.createElement('script');
-                script.src = `https://ltn.gold-usergeneratedcontent.net/galleries/${id}.js`;
+                script.src = `//${domain}/galleries/${id}.js`;
                 script.onload = () => {
                     if (typeof galleryinfo !== 'undefined' && galleryinfo.files) {
                         const pageCount = galleryinfo.files.length;
@@ -136,7 +153,7 @@
         }
 
         for (let i = 0; i < xbytes; i += 4) {
-            if (search && (i + search_fetch_count) === 0) continue
+            if (search && (i + fetch_count) === 0) continue
             const id = view.getUint32(i, false);
             promises.push(fetch_page_num(id));
         };
@@ -151,16 +168,18 @@
                 }
             }
         });
+        console.log('ids_obj IDs sample:', Object.entries(ids_obj));
         return ids_obj
     };
 
-    function xhr_get(url, responseType = 'text', headers = {}) {
+    function xhr_get(url, responseType = 'arraybuffer', start = 0, step = GALLERIES_PER_PAGE * 4) {
         return new Promise((resolve) => {
             const xhr = new XMLHttpRequest();
             xhr.open('GET', url, true);
             xhr.responseType = responseType;
-            for (const [key, value] of Object.entries(headers)) {
-                xhr.setRequestHeader(key, value);
+            if (responseType === "arraybuffer") {
+                start = step * fetch_count
+                xhr.setRequestHeader("Range", `bytes=${start}-${start + step - 1}`);
             }
             xhr.onload = () => {
                 if (xhr.status === 200 || xhr.status === 206) {
@@ -179,7 +198,7 @@
         for (let i = 0; i < end; ++i) {
             const galleryId = ids_list[i];
             const url = `//${domain}/galleryblock/${galleryId}.html`;
-            promises.push(xhr_get(url));
+            promises.push(xhr_get(url, "text"));
         }
 
         const results = await Promise.allSettled(promises);
@@ -284,7 +303,7 @@
         )
     };
 
-    async function search(text) {
+    async function select_leaf(text) {
         DataView.prototype.getUint64 = function(byteOffset, littleEndian) {
             // split 64-bit number into two 32-bit (4-byte) parts
             const left = this.getUint32(byteOffset, littleEndian);
@@ -299,21 +318,19 @@
             return combined;
         }
 
-        async function fetch_index(field = "galleries", address = 0, step = 464, ext = '.index') {
+        function make_url(field = "galleries", ext = '.index') {
             let url = '';
             if (field === 'galleries') {
-                url = `https://${domain}/galleriesindex/galleries.${galleries_index_version}${ext}`
+                url = `//${domain}/galleriesindex/galleries.${galleries_index_version}${ext}`
             } //else if (field === 'languages') {
             //     url = '//' + domain + '/' + languages_index_dir + '/languages.' + languages_index_version + '.index';
             // } else if (field === 'nozomiurl') {
             //     url = '//' + domain + '/' + nozomiurl_index_dir + '/nozomiurl.' + nozomiurl_index_version + '.index';
             // }
-            const nodedata = await xhr_get(url, 'arraybuffer', { 'Range': `bytes=${address}-${address + step - 1}` });
-            return nodedata
+            return url
         }
 
-        function decode_node(bytes_list) {
-            fetching = true
+        function decode_node(byte_array) {
             let pos = 0;
             let node = {
                 keys: [],
@@ -321,8 +338,7 @@
                 subnode_addresses: [],
             };
 
-            const eightarray = new Uint8Array(bytes_list);
-            const view = new DataView(eightarray.buffer);
+            const view = new DataView(byte_array.buffer);
             const number_of_keys = view.getInt32(pos, false /* big-endian */);
             pos += 4;
 
@@ -334,7 +350,7 @@
                     return;
                 }
                 pos += 4;
-                keys.push(eightarray.slice(pos, pos + key_size));
+                keys.push(byte_array.slice(pos, pos + key_size));
                 pos += key_size;
             }
 
@@ -403,7 +419,6 @@
         };
 
         async function b_tree(node) {
-            let index_node = undefined
             let [there, where, isleaf] = compare_key(node)
             if (there) {
                 return node.datas[where];
@@ -413,38 +428,58 @@
             if (node.subnode_addresses[where] == 0) {
                 return Error
             }
-            index_node = await fetch_index(undefined, node.subnode_addresses[where])
-            node = decode_node(index_node)
+            const byte_array = await xhr_get(index_url, node.subnode_addresses[where])
+            node = decode_node(byte_array)
             return await b_tree(node)
         }
 
-        searching = true
-        fetching = true
+        const leaf_obj = {}
+        let area;
+        let tag;
+        if (/:/.test(text)) {
+            const area_elements = text.split(/:/);
+            const area = area_elements[0];
+            const tag = area_elements[1];
+            fetch_count = 0
+            fetch_nozomi()
+            return
+        }
         const key = new Uint8Array(sha256.array(text).slice(0, 4))
-        const version_url = `https://${domain}/galleriesindex/version?_=${(new Date).getTime()}`
-        const galleries_index_version = await xhr_get(version_url)
+        const version_url = `//${domain}/galleriesindex/version?_=${(new Date).getTime()}`
+        const galleries_index_version = await xhr_get(version_url, "text")
 
-        const index_node = await fetch_index()
-        const node = decode_node(index_node)
-        const res = await b_tree(node)
-        let [offset, length] = res;
+        const index_url = make_url()
+        const array_buf = await xhr_get(index_url, undefined, 0, 464)
+        const byte_array = new Uint8Array(array_buf);
+        const node = decode_node(byte_array)
+        const leaf_value = await b_tree(node)
+        const data_url = make_url(undefined, ".data")
+        leaf_obj = {
+            "text": text,
+            "url": data_url,
+            "start": leaf_value[0],
+            "length": leaf_value[1],
+            "field": "galleries",
+            "giv": galleries_index_version
+        }
 
-        let pos = 0;
-        const end = search_fetch_count === 0 ? (GALLERIES_PER_PAGE * 4) + 4 : (GALLERIES_PER_PAGE * 4)
-        const start = offset + (end + 4) * search_fetch_count
-        const inbuf = await fetch_index(undefined, start, end, ".data")
-        // const inbuf = await fetch_index(undefined, offset, length, ".data")
-        const eightbuf = new Uint8Array(inbuf);
+        return leaf_obj;
 
-        const view = new DataView(eightbuf.buffer);
-        const totalBytes = view.byteLength;
-        // let number_of_galleryids = view.getInt32(pos, false /* big-endian */);
-        pos += 4;
-
-        const ids_obj = await filter_contents(totalBytes, view, true)
-        console.log('ids_obj IDs sample:', Object.entries(ids_obj));
-        ++search_fetch_count
-        return ids_obj
+        // let [offset, length] = leaf_value;
+        // let pos = 0;
+        // const end = fetch_count === 0 ? (GALLERIES_PER_PAGE * 4) + 4 : (GALLERIES_PER_PAGE * 4)
+        // const start = offset + (end + 4) * fetch_count
+        // const inbuf = await fetch_index(undefined, start, end, ".data")
+        // // const inbuf = await fetch_index(undefined, offset, length, ".data")
+        //
+        // const view = new DataView(inbuf.buffer);
+        // const totalBytes = view.byteLength;
+        // // let number_of_galleryids = view.getInt32(pos, false /* big-endian */);
+        // pos += 4;
+        //
+        // const ids_obj = await filter_contents(totalBytes, view, true)
+        // console.log('ids_obj IDs sample:', Object.entries(ids_obj));
+        // return ids_obj
     }
 
     async function get_search_suggestion(input, divSuggestionC) {
@@ -486,7 +521,7 @@
 
             const final_str = suggestion[0].replace(re, function(str) { return '<strong>' + str + '</strong>' });
 
-            spanStext.innerHTML = `${final_str} (${suggestion[2]})`; // final_strとsuggestion[2]を表示
+            spanStext.innerHTML = `${final_str} (${suggestion[2]})`;
             spanScount.textContent = suggestion[1]
 
             aS.appendChild(spanStext)
@@ -513,9 +548,9 @@
         });
 
         await Promise.allSettled(promises);
-        fetching = false
 
     }
+
     const FETCH_PAGENUM = false
     const INF_SCROLL = true
     const SCROLL_THRESHOLD = 0.7
@@ -523,41 +558,18 @@
     const GALLERIES_PER_PAGE = 25;
     const domain = 'ltn.gold-usergeneratedcontent.net';
     let fetching = false
-    let searching = false
-    let searching_text = ""
     let fetch_count = 0
-    let search_fetch_count = 0
+    let leaf_obj = {}
 
     document.documentElement.innerHTML = html;
-    await new Promise((resolve,) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js';
-        script.async = true;
-        script.onload = resolve;
-        document.head.appendChild(script);
-    });
 
-    if (!INF_SCROLL) {
-        const divPageC = document.createElement("div")
-        divPageC.className = "PageContainer"
-        document.body.appendChild(divPageC)
-    }
-
-    let ids_obj = await fetch_nozomi();
+    fetching = true
+    const bytesArray = await xhr_get(`//${domain}/index-all.nozomi`);
+    const view = new DataView(bytesArray);
+    const totalBytes = view.byteLength;
+    const ids_obj = await filter_contents(totalBytes, view)
     await load(ids_obj)
-
-    window.addEventListener('scroll', async function() {
-        if (!INF_SCROLL) {
-            return
-        }
-        const scrollPercentage = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
-        if (scrollPercentage >= SCROLL_THRESHOLD && !fetching) {
-            if (searching) ids_obj = await search(searching_text);
-            if (!searching) ids_obj = await fetch_nozomi();
-
-            await load(ids_obj)
-        }
-    });
+    fetching = false
 
     const SearchInput = document.querySelector('div.SearchContainer input');
     let divSuggestionC = document.querySelector("div.SuggestionContainer")
@@ -576,8 +588,46 @@
 
     const SearchButton = document.querySelector("button.SearchButton")
     SearchButton.addEventListener('click', async function() {
-        searching_text = SearchInput.value
-        ids_obj = await search(searching_text)
+        fetch_count = 0
+        fetching = true
+        leaf_obj = await select_leaf(SearchInput.value)
+
+        const inbuf = await xhr_get(url)
+        const view = new DataView(inbuf.buffer);
+        const totalBytes = view.byteLength;
+
+        const ids_obj = await filter_contents(totalBytes, view, true)
         await load(ids_obj, true)
+        fetching = false
     });
+
+    if (INF_SCROLL) {
+        window.addEventListener('scroll', async function() {
+            const scrollPercentage = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
+            if (scrollPercentage >= SCROLL_THRESHOLD && !fetching) {
+                if (leaf_obj["text"]) {
+                    fetching = true
+                    const inbuf = await xhr_get(leaf_obj["url"])
+                    const view = new DataView(inbuf.buffer);
+                    const totalBytes = view.byteLength;
+                    const ids_obj = await filter_contents(totalBytes, view, true)
+                    await load(ids_obj)
+                    fetching = false
+                } else {
+                    fetching = true
+                    const bytesArray = await xhr_get(`//${domain}/index-all.nozomi`);
+                    const view = new DataView(bytesArray);
+                    const totalBytes = view.byteLength;
+                    const ids_obj = await filter_contents(totalBytes, view)
+                    await load(ids_obj)
+                    fetching = false
+                }
+            }
+        });
+    } else {
+        const divPageC = document.createElement("div")
+        divPageC.className = "PageContainer"
+        document.body.appendChild(divPageC)
+    }
+
 })();
