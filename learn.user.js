@@ -4,10 +4,10 @@
 // @match        https://ltn.gold-usergeneratedcontent.net/*
 // @grant        none
 // @require      https://raw.github.com/emn178/js-sha256/master/build/sha256.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
 // @version      1.2
 // @author       -
 // ==/UserScript==
-// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
 
 (async function() {
     'use strict';
@@ -125,7 +125,7 @@
     //     return ids_obj
     // }
 
-    async function filter_contents(xbytes, view, search) {
+    async function filter_contents(xbytes, view) {
         const ids_obj = {}
         const promises = []
 
@@ -153,7 +153,6 @@
         }
 
         for (let i = 0; i < xbytes; i += 4) {
-            if (search && (i + fetch_count) === 0) continue
             const id = view.getUint32(i, false);
             promises.push(fetch_page_num(id));
         };
@@ -172,13 +171,13 @@
         return ids_obj
     };
 
-    function xhr_get(url, responseType = 'arraybuffer', start = 0, step = GALLERIES_PER_PAGE * 4) {
+    function xhr_get(url, responseType = 'arraybuffer', start = 0, step = GALLERIES_PER_PAGE * 4, fetch_count = 0) {
         return new Promise((resolve) => {
             const xhr = new XMLHttpRequest();
             xhr.open('GET', url, true);
             xhr.responseType = responseType;
             if (responseType === "arraybuffer") {
-                start = step * fetch_count
+                start += step * fetch_count
                 xhr.setRequestHeader("Range", `bytes=${start}-${start + step - 1}`);
             }
             xhr.onload = () => {
@@ -428,12 +427,12 @@
             if (node.subnode_addresses[where] == 0) {
                 return Error
             }
-            const byte_array = await xhr_get(index_url, node.subnode_addresses[where])
-            node = decode_node(byte_array)
+            const byte_array = await xhr_get(index_url, undefined, node.subnode_addresses[where], 464)
+            const eight_array = new Uint8Array(byte_array);
+            node = decode_node(eight_array)
             return await b_tree(node)
         }
 
-        const leaf_obj = {}
         let area;
         let tag;
         if (/:/.test(text)) {
@@ -445,16 +444,16 @@
             return
         }
         const key = new Uint8Array(sha256.array(text).slice(0, 4))
-        const version_url = `//${domain}/galleriesindex/version?_=${(new Date).getTime()}`
+        const version_url = `//${domain}/galleriesindex/version?_=${(new Date).getTime()}.index`
         const galleries_index_version = await xhr_get(version_url, "text")
 
-        const index_url = make_url()
+        const index_url = `//${domain}/galleriesindex/galleries.${galleries_index_version}.index`
         const array_buf = await xhr_get(index_url, undefined, 0, 464)
-        const byte_array = new Uint8Array(array_buf);
-        const node = decode_node(byte_array)
+        const eight_array = new Uint8Array(array_buf);
+        const node = decode_node(eight_array)
         const leaf_value = await b_tree(node)
         const data_url = make_url(undefined, ".data")
-        leaf_obj = {
+        const leaf_obj = {
             "text": text,
             "url": data_url,
             "start": leaf_value[0],
@@ -592,11 +591,12 @@
         fetching = true
         leaf_obj = await select_leaf(SearchInput.value)
 
-        const inbuf = await xhr_get(url)
-        const view = new DataView(inbuf.buffer);
+        const inbuf = await xhr_get(leaf_obj["url"], undefined, leaf_obj["start"] + 4, GALLERIES_PER_PAGE * 4)
+        const eight_array = new Uint8Array(inbuf);
+        const view = new DataView(eight_array.buffer);
         const totalBytes = view.byteLength;
 
-        const ids_obj = await filter_contents(totalBytes, view, true)
+        const ids_obj = await filter_contents(totalBytes, view)
         await load(ids_obj, true)
         fetching = false
     });
@@ -607,10 +607,11 @@
             if (scrollPercentage >= SCROLL_THRESHOLD && !fetching) {
                 if (leaf_obj["text"]) {
                     fetching = true
-                    const inbuf = await xhr_get(leaf_obj["url"])
-                    const view = new DataView(inbuf.buffer);
+                    const inbuf = await xhr_get(leaf_obj["url"], undefined, leaf_obj["start"] + 4, undefined, fetch_count)
+                    const eight_array = new Uint8Array(inbuf);
+                    const view = new DataView(eight_array.buffer);
                     const totalBytes = view.byteLength;
-                    const ids_obj = await filter_contents(totalBytes, view, true)
+                    const ids_obj = await filter_contents(totalBytes, view)
                     await load(ids_obj)
                     fetching = false
                 } else {
