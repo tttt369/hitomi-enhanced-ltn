@@ -55,6 +55,7 @@
             .SuggestionContainer {margin: 0; position: absolute; z-index: 1; background-color: #212529; color: darkgray; border: 1px solid grey; border-radius: 0.375rem;}
             .Suggestion { display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid; font-weight: 700;}
             .SuggestionText {flex: 1; text-overflow: ellipsis; overflow: hidden; text-overflow: ellipsis; }
+            #scrollSentinel {height: 1px}
 
         </style>
     </head>
@@ -91,6 +92,7 @@
                 </div>
             </div>
             <div class="CardContainer"></div>
+            <div id="scrollSentinel"></div>
         </div>
     </body>
     </html>
@@ -196,20 +198,10 @@
                 const list = isList ? Array.from(listOrItem) : [listOrItem];
                 const text = list.length ? list[0].textContent : defaultText;
 
-                const tr = document.createElement('tr');
-                container.appendChild(tr)
-
-                const td_type = document.createElement("td")
-                const td_Colon = document.createElement("td")
-                const td_value = document.createElement("td")
-
-                tr.appendChild(td_type)
-                tr.appendChild(td_Colon)
-                tr.appendChild(td_value)
-
-                td_type.textContent = type
-                td_Colon.textContent = ":"
-                td_value.textContent = text
+                container.insertAdjacentHTML(
+                    "beforeend",
+                    `<tr><td>${type}</td><td>:</td><td>${text}</td></tr>`
+                );
             };
 
             function generate_tags(tags, container) {
@@ -531,12 +523,22 @@
         let gallery_list = await fetch_gallery(ids_list);
 
         let promises = []
+        const fragment = document.createDocumentFragment();
         gallery_list.forEach(gallery => {
-            promises.push(generate_card(gallery, ids_obj, div_CardC))
+            promises.push(generate_card(gallery, ids_obj, fragment))
         });
 
         await Promise.allSettled(promises);
+        div_CardC.appendChild(fragment);
         fetching = false
+    }
+
+    function debounce(func, delay) {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func(...args), delay);
+        };
     }
 
     const FETCH_PAGENUM = false
@@ -544,6 +546,7 @@
     const SCROLL_THRESHOLD = 0.7
     const MIN_PAGE = 0
     const GALLERIES_PER_PAGE = 25;
+    const DEBOUNCE_TIME = 300
     const domain = 'ltn.gold-usergeneratedcontent.net';
     let fetching = false
     let fetch_count = 0
@@ -555,7 +558,7 @@
     let divSuggestionC = document.querySelector("div.SuggestionContainer")
     const SearchInput = document.querySelector('div.SearchContainer input');
     const divSearchC = document.querySelector("div.SearchContainer")
-    SearchInput.addEventListener('input', function() {
+    SearchInput.addEventListener('input', debounce(function() {
         if (!divSuggestionC) {
             const SearchC = document.querySelector('div.SearchContainer');
             divSuggestionC = document.createElement("div")
@@ -566,7 +569,7 @@
             divSuggestionC.textContent = ""
         }
         get_search_suggestion(SearchInput.value, divSuggestionC, divSearchC);
-    });
+    }, DEBOUNCE_TIME));
 
     const SearchButton = document.querySelector("button.SearchButton")
     SearchButton.addEventListener('click', async function() {
@@ -575,20 +578,23 @@
     });
 
     if (INF_SCROLL) {
-        window.addEventListener('scroll', async function() {
-            const scrollPercentage = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
-            if (scrollPercentage >= SCROLL_THRESHOLD && !fetching) {
+        const observer = new IntersectionObserver(async (entries) => {
+            const entry = entries[0];
+
+            if (entry.isIntersecting && !fetching) {
                 if (leaf_obj["text"]) {
-                    await load("search", fetch_count)
+                    await load("search", fetch_count);
                 } else {
-                    await load("home", fetch_count)
+                    await load("home", fetch_count);
                 }
             }
+        }, {
+            root: null,
+            rootMargin: "0px 0px 300px 0px",
+            threshold: 0
         });
-    } else {
-        const divPageC = document.createElement("div")
-        divPageC.className = "PageContainer"
-        document.body.appendChild(divPageC)
+
+        observer.observe(document.querySelector("#scrollSentinel"));
     }
 
 })();
