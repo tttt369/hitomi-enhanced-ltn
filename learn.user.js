@@ -96,39 +96,7 @@
     </html>
     `;
 
-    // async function fetch_index(url, address = 0, step = GALLERIES_PER_PAGE * 4, fetch_count = 0, isres = false) {
-    //     fetching = true
-    //     address = step * fetch_count
-    //
-    //     let nodedata = await xhr_get(url, 'arraybuffer', { 'Range': `bytes=${address}-${address + step - 1}` });
-    //     if (!isnozomi) {
-    //         nodedata = new Uint8Array(nodedata);
-    //         if (!isres) return byte_array
-    //     }
-    //     if (isnozomi) view = new DataView(nodedata);
-    //     if (!isnozomi) view = new DataView(nodedata.buffer);
-    //     const totalBytes = view.byteLength;
-    //
-    //     const ids_obj = await filter_contents(totalBytes, view, !isnozomi)
-    //     console.log('ids_obj IDs sample:', Object.entries(ids_obj));
-    // }
-
-    // async function fetch_nozomi(area = "index") {
-    //     const start_bytes = (GALLERIES_PER_PAGE * 4) * fetch_count
-    //     const end_bytes = start_bytes + 99
-    //     const arrayBuffer = await xhr_get('index-all.nozomi', 'arraybuffer', { 'Range': `bytes=${start_bytes}-${end_bytes}` });
-    //     const view = new DataView(arrayBuffer);
-    //     const totalBytes = view.byteLength;
-    //
-    //     const ids_obj = await filter_contents(totalBytes, view)
-    //     console.log('ids_obj IDs sample:', Object.entries(ids_obj));
-    //     return ids_obj
-    // }
-
     async function filter_contents(xbytes, view) {
-        const ids_obj = {}
-        const promises = []
-
         function fetch_page_num(id) {
             const res = {};
             return new Promise((resolve) => {
@@ -152,6 +120,9 @@
             });
         }
 
+        const ids_obj = {}
+        const promises = []
+
         for (let i = 0; i < xbytes; i += 4) {
             const id = view.getUint32(i, false);
             promises.push(fetch_page_num(id));
@@ -171,15 +142,24 @@
         return ids_obj
     };
 
-    function xhr_get(url, responseType = 'arraybuffer', start = 0, step = GALLERIES_PER_PAGE * 4, fetch_count = 0) {
+    function xhr_get(url, options = {}) {
+        const {
+            responseType = 'arraybuffer',
+            start = 0,
+            step = GALLERIES_PER_PAGE * 4,
+            fetch_count = 0
+        } = options;
+
         return new Promise((resolve) => {
             const xhr = new XMLHttpRequest();
             xhr.open('GET', url, true);
             xhr.responseType = responseType;
+
             if (responseType === "arraybuffer") {
-                start += step * fetch_count
-                xhr.setRequestHeader("Range", `bytes=${start}-${start + step - 1}`);
+                const actualStart = start + step * fetch_count;
+                xhr.setRequestHeader("Range", `bytes=${actualStart}-${actualStart + step - 1}`);
             }
+
             xhr.onload = () => {
                 if (xhr.status === 200 || xhr.status === 206) {
                     resolve(xhr.response);
@@ -197,7 +177,7 @@
         for (let i = 0; i < end; ++i) {
             const galleryId = ids_list[i];
             const url = `//${domain}/galleryblock/${galleryId}.html`;
-            promises.push(xhr_get(url, "text"));
+            promises.push(xhr_get(url, { "responseType": "text" }));
         }
 
         const results = await Promise.allSettled(promises);
@@ -384,7 +364,7 @@
             return node;
         }
 
-        function compare_key(node) {
+        function compare_key(node, key) {
             let i;
             let cmp_result = -1;
 
@@ -417,8 +397,8 @@
             return [!cmp_result, i, is_leaf()];
         };
 
-        async function b_tree(node) {
-            let [there, where, isleaf] = compare_key(node)
+        async function b_tree(node, key) {
+            let [there, where, isleaf] = compare_key(node, key)
             if (there) {
                 return node.datas[where];
             } else if (isleaf) {
@@ -427,10 +407,10 @@
             if (node.subnode_addresses[where] == 0) {
                 return Error
             }
-            const byte_array = await xhr_get(index_url, undefined, node.subnode_addresses[where], 464)
+            const byte_array = await xhr_get(index_url, { "start": node.subnode_addresses[where], "step": 464 })
             const eight_array = new Uint8Array(byte_array);
             node = decode_node(eight_array)
-            return await b_tree(node)
+            return await b_tree(node, key)
         }
 
         let area;
@@ -445,14 +425,15 @@
         }
         const key = new Uint8Array(sha256.array(text).slice(0, 4))
         const version_url = `//${domain}/galleriesindex/version?_=${(new Date).getTime()}.index`
-        const galleries_index_version = await xhr_get(version_url, "text")
+        const galleries_index_version = await xhr_get(version_url, { "responseType": "text" })
 
         const index_url = `//${domain}/galleriesindex/galleries.${galleries_index_version}.index`
-        const array_buf = await xhr_get(index_url, undefined, 0, 464)
+        const array_buf = await xhr_get(index_url, { "step": 464 })
         const eight_array = new Uint8Array(array_buf);
         const node = decode_node(eight_array)
-        const leaf_value = await b_tree(node)
-        const data_url = make_url(undefined, ".data")
+        const leaf_value = await b_tree(node, key)
+        const data_url = `//${domain}/galleriesindex/galleries.${galleries_index_version}.data`
+
         const leaf_obj = {
             "text": text,
             "url": data_url,
@@ -464,24 +445,9 @@
 
         return leaf_obj;
 
-        // let [offset, length] = leaf_value;
-        // let pos = 0;
-        // const end = fetch_count === 0 ? (GALLERIES_PER_PAGE * 4) + 4 : (GALLERIES_PER_PAGE * 4)
-        // const start = offset + (end + 4) * fetch_count
-        // const inbuf = await fetch_index(undefined, start, end, ".data")
-        // // const inbuf = await fetch_index(undefined, offset, length, ".data")
-        //
-        // const view = new DataView(inbuf.buffer);
-        // const totalBytes = view.byteLength;
-        // // let number_of_galleryids = view.getInt32(pos, false /* big-endian */);
-        // pos += 4;
-        //
-        // const ids_obj = await filter_contents(totalBytes, view, true)
-        // console.log('ids_obj IDs sample:', Object.entries(ids_obj));
-        // return ids_obj
     }
 
-    async function get_search_suggestion(input, divSuggestionC) {
+    async function get_search_suggestion(input, divSuggestionC, divSearchC) {
         function encode_search_query_for_url(s) {
             return s.replace(/[ \/\.]/g, function(m) {
                 return {
@@ -508,7 +474,7 @@
         }
         url += '.json';
 
-        const suggestions = await xhr_get(url, "json")
+        const suggestions = await xhr_get(url, { "responseType": "json" })
         suggestions.forEach(suggestion => {
             const aS = document.createElement("a")
             const spanStext = document.createElement("span")
@@ -527,19 +493,42 @@
             aS.appendChild(spanScount)
             divSuggestionC.appendChild(aS)
         })
-        const searchContainer = document.querySelector('.SearchContainer');
-        const rect = searchContainer.getBoundingClientRect();
+        const rect = divSearchC.getBoundingClientRect();
         divSuggestionC.style.left = rect.left + 'px';
         divSuggestionC.style.top = rect.height + rect.top + 'px';
         divSuggestionC.style.width = rect.width + 'px';
     }
 
-    async function load(ids_obj, reset_container = false) {
+    async function load(load_type, fetch_count) {
+        fetching = true
+        let ids_obj
         const div_CardC = document.querySelector("div.CardContainer")
-        if (reset_container) div_CardC.innerHTML = "";
 
+        if (load_type === "home") {
+            const bytesArray = await xhr_get(`//${domain}/index-all.nozomi`, { fetch_count: fetch_count });
+            const view = new DataView(bytesArray);
+            const totalBytes = view.byteLength;
+            ids_obj = await filter_contents(totalBytes, view)
+        }
+        else if (load_type === "search") {
+            if (fetch_count === 0) {
+                leaf_obj = await select_leaf(SearchInput.value)
+                const inbuf = await xhr_get(leaf_obj["url"], { "start": leaf_obj["start"] + 4, "step": GALLERIES_PER_PAGE * 4 })
+                const eight_array = new Uint8Array(inbuf);
+                const view = new DataView(eight_array.buffer);
+                const totalBytes = view.byteLength;
+                ids_obj = await filter_contents(totalBytes, view)
+                div_CardC.innerHTML = "";
+            } else {
+                const inbuf = await xhr_get(leaf_obj["url"], { "start": leaf_obj["start"] + 4, "fetch_count": fetch_count })
+                const eight_array = new Uint8Array(inbuf);
+                const view = new DataView(eight_array.buffer);
+                const totalBytes = view.byteLength;
+                ids_obj = await filter_contents(totalBytes, view)
+            }
+        }
         const ids_list = Object.keys(ids_obj)
-        const gallery_list = await fetch_gallery(ids_list);
+        let gallery_list = await fetch_gallery(ids_list);
 
         let promises = []
         gallery_list.forEach(gallery => {
@@ -547,7 +536,7 @@
         });
 
         await Promise.allSettled(promises);
-
+        fetching = false
     }
 
     const FETCH_PAGENUM = false
@@ -561,17 +550,11 @@
     let leaf_obj = {}
 
     document.documentElement.innerHTML = html;
+    await load("home")
 
-    fetching = true
-    const bytesArray = await xhr_get(`//${domain}/index-all.nozomi`);
-    const view = new DataView(bytesArray);
-    const totalBytes = view.byteLength;
-    const ids_obj = await filter_contents(totalBytes, view)
-    await load(ids_obj)
-    fetching = false
-
-    const SearchInput = document.querySelector('div.SearchContainer input');
     let divSuggestionC = document.querySelector("div.SuggestionContainer")
+    const SearchInput = document.querySelector('div.SearchContainer input');
+    const divSearchC = document.querySelector("div.SearchContainer")
     SearchInput.addEventListener('input', function() {
         if (!divSuggestionC) {
             const SearchC = document.querySelector('div.SearchContainer');
@@ -582,23 +565,13 @@
         if (divSuggestionC.textContent) {
             divSuggestionC.textContent = ""
         }
-        get_search_suggestion(SearchInput.value, divSuggestionC);
+        get_search_suggestion(SearchInput.value, divSuggestionC, divSearchC);
     });
 
     const SearchButton = document.querySelector("button.SearchButton")
     SearchButton.addEventListener('click', async function() {
         fetch_count = 0
-        fetching = true
-        leaf_obj = await select_leaf(SearchInput.value)
-
-        const inbuf = await xhr_get(leaf_obj["url"], undefined, leaf_obj["start"] + 4, GALLERIES_PER_PAGE * 4)
-        const eight_array = new Uint8Array(inbuf);
-        const view = new DataView(eight_array.buffer);
-        const totalBytes = view.byteLength;
-
-        const ids_obj = await filter_contents(totalBytes, view)
-        await load(ids_obj, true)
-        fetching = false
+        await load("search", fetch_count)
     });
 
     if (INF_SCROLL) {
@@ -606,22 +579,9 @@
             const scrollPercentage = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
             if (scrollPercentage >= SCROLL_THRESHOLD && !fetching) {
                 if (leaf_obj["text"]) {
-                    fetching = true
-                    const inbuf = await xhr_get(leaf_obj["url"], undefined, leaf_obj["start"] + 4, undefined, fetch_count)
-                    const eight_array = new Uint8Array(inbuf);
-                    const view = new DataView(eight_array.buffer);
-                    const totalBytes = view.byteLength;
-                    const ids_obj = await filter_contents(totalBytes, view)
-                    await load(ids_obj)
-                    fetching = false
+                    await load("search", fetch_count)
                 } else {
-                    fetching = true
-                    const bytesArray = await xhr_get(`//${domain}/index-all.nozomi`);
-                    const view = new DataView(bytesArray);
-                    const totalBytes = view.byteLength;
-                    const ids_obj = await filter_contents(totalBytes, view)
-                    await load(ids_obj)
-                    fetching = false
+                    await load("home", fetch_count)
                 }
             }
         });
