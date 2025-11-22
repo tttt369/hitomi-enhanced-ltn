@@ -4,10 +4,10 @@
 // @match        https://ltn.gold-usergeneratedcontent.net/*
 // @grant        none
 // @require      https://raw.github.com/emn178/js-sha256/master/build/sha256.min.js
-// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
 // @version      1.2
 // @author       -
 // ==/UserScript==
+// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
 
 (async function() {
     'use strict';
@@ -98,16 +98,25 @@
     </html>
     `;
 
-    async function filter_contents(xbytes, view) {
+
+    function get_ids(total_bytes, view) {
+        const ids_list = []
+        for (let i = 0; i < total_bytes; i += 4) {
+            const id = view.getUint32(i, false);
+            ids_list.push(id)
+        };
+        return ids_list
+    }
+
+    async function filter_contents(ids_list, fetch_idjs = FETCH_IDJS) {
         function fetch_page_num(id) {
             const res = {};
             return new Promise((resolve) => {
-                if (!FETCH_PAGENUM) {
+                if (!fetch_idjs) {
                     res[id] = null;
                     resolve(res);
                     return;
                 }
-
                 const script = document.createElement('script');
                 script.src = `//${domain}/galleries/${id}.js`;
                 script.onload = () => {
@@ -125,22 +134,29 @@
         const ids_obj = {}
         const promises = []
 
-        for (let i = 0; i < xbytes; i += 4) {
-            const id = view.getUint32(i, false);
-            promises.push(fetch_page_num(id));
-        };
-        const results_list = await Promise.allSettled(promises);
-        results_list.forEach(r => {
+        ids_list.forEach(id => {
+            promises.push(fetch_page_num(id, fetch_idjs));
+        })
+
+        const promises_list = await Promise.allSettled(promises);
+
+        promises_list.forEach(r => {
             if (r.status === 'fulfilled' && r.value) {
-                const keys = Object.keys(r.value)
-                const values = Object.values(r.value)
-                if (!FETCH_PAGENUM) ids_obj[keys] = null
-                if (values > MIN_PAGE) {
-                    ids_obj[keys] = values;
-                }
+                const keys = Object.keys(r.value)[0]
+                const values = Object.values(r.value)[0]
+                ids_obj[keys] = values
             }
         });
-        console.log('ids_obj IDs sample:', Object.entries(ids_obj));
+
+        console.log('ids_obj IDs sample:', ids_obj);
+        if (!fetch_idjs) return ids_obj
+
+        for (const [key, value] of Object.entries(ids_obj)) {
+            if (value < MIN_PAGE) {
+                delete ids_obj[key]
+            }
+        }
+        console.log('ids_obj IDs sample:', ids_obj);
         return ids_obj
     };
 
@@ -149,7 +165,8 @@
             responseType = 'arraybuffer',
             start = 0,
             step = GALLERIES_PER_PAGE * 4,
-            fetch_count = 0
+            fetch_count = 0,
+            fetch_all = false
         } = options;
 
         return new Promise((resolve) => {
@@ -157,7 +174,7 @@
             xhr.open('GET', url, true);
             xhr.responseType = responseType;
 
-            if (responseType === "arraybuffer") {
+            if (responseType === "arraybuffer" && !fetch_all) {
                 const actualStart = start + step * fetch_count;
                 xhr.setRequestHeader("Range", `bytes=${actualStart}-${actualStart + step - 1}`);
             }
@@ -179,7 +196,7 @@
         for (let i = 0; i < end; ++i) {
             const galleryId = ids_list[i];
             const url = `//${domain}/galleryblock/${galleryId}.html`;
-            promises.push(xhr_get(url, { "responseType": "text" }));
+            promises.push(xhr_get(url, { responseType: "text" }));
         }
 
         const results = await Promise.allSettled(promises);
@@ -188,7 +205,7 @@
         });
 
         ++fetch_count
-        return gallery_list.reverse();
+        return gallery_list;
     }
 
     function generate_card(gallery, ids_obj, div_CardC) {
@@ -274,7 +291,7 @@
         )
     };
 
-    async function select_leaf(text) {
+    async function select_leaf(text, fetch_count) {
         DataView.prototype.getUint64 = function(byteOffset, littleEndian) {
             // split 64-bit number into two 32-bit (4-byte) parts
             const left = this.getUint32(byteOffset, littleEndian);
@@ -389,7 +406,7 @@
             return [!cmp_result, i, is_leaf()];
         };
 
-        async function b_tree(node, key) {
+        async function b_tree(node, key, index_url) {
             let [there, where, isleaf] = compare_key(node, key)
             if (there) {
                 return node.datas[where];
@@ -399,47 +416,133 @@
             if (node.subnode_addresses[where] == 0) {
                 return Error
             }
-            const byte_array = await xhr_get(index_url, { "start": node.subnode_addresses[where], "step": 464 })
+            const byte_array = await xhr_get(index_url, { start: node.subnode_addresses[where], step: 464 })
             const eight_array = new Uint8Array(byte_array);
             node = decode_node(eight_array)
-            return await b_tree(node, key)
+            return await b_tree(node, key, index_url)
         }
 
-        let area;
-        let tag;
-        if (/:/.test(text)) {
-            const area_elements = text.split(/:/);
-            const area = area_elements[0];
-            const tag = area_elements[1];
-            fetch_count = 0
-            fetch_nozomi()
-            return
-        }
-        const key = new Uint8Array(sha256.array(text).slice(0, 4))
-        const version_url = `//${domain}/galleriesindex/version?_=${(new Date).getTime()}.index`
-        const galleries_index_version = await xhr_get(version_url, { "responseType": "text" })
-
-        const index_url = `//${domain}/galleriesindex/galleries.${galleries_index_version}.index`
-        const array_buf = await xhr_get(index_url, { "step": 464 })
-        const eight_array = new Uint8Array(array_buf);
-        const node = decode_node(eight_array)
-        const leaf_value = await b_tree(node, key)
-        const data_url = `//${domain}/galleriesindex/galleries.${galleries_index_version}.data`
-
-        const leaf_obj = {
-            "text": text,
-            "url": data_url,
-            "start": leaf_value[0],
-            "length": leaf_value[1],
-            "field": "galleries",
-            "giv": galleries_index_version
+        async function nozomi_load(options = {}) {
+            const {
+                url = `//${domain}/index-all.nozomi`,
+                fetch_count = 0,
+                step = GALLERIES_PER_PAGE * 4,
+                list = false,
+                fetch_all = false
+            } = options;
+            const bytesArray = await xhr_get(url, { fetch_count: fetch_count, step: step, fetch_all: fetch_all });
+            const view = new DataView(bytesArray);
+            const totalBytes = view.byteLength;
+            const ids_list = get_ids(totalBytes, view)
+            if (list) return ids_list
+            const ids_obj = await filter_contents(ids_list)
+            return ids_obj
         }
 
-        return leaf_obj;
+        async function index_load(options = {}) {
+            const {
+                url = undefined,
+                start = 0,
+                fetch_count = 0,
+                step = GALLERIES_PER_PAGE * 4,
+                list = false,
+                fetch_all = false
+            } = options;
+            const inbuf = await xhr_get(url, { fetch_count: fetch_count, start: start + 4, step: step, fetch_all: fetch_all })
+            const eight_array = new Uint8Array(inbuf);
+            const view = new DataView(eight_array.buffer);
+            const totalBytes = view.byteLength;
+            const ids_list = get_ids(totalBytes - 4, view)
+            if (list) return ids_list
+            const ids_obj = await filter_contents(ids_list)
+            return ids_obj
+        }
 
+        let ids_obj
+        if (!text) {
+            ids_obj = await nozomi_load({ fetch_count: fetch_count })
+            return ids_obj
+        }
+
+        let query_string = decodeURIComponent(text).replace(/^\?/, '');
+        let terms = query_string.toLowerCase().trim().split(/\s+/);
+        const terms_length = terms.length
+        for (let term of terms) {
+            term = term.replace(/_/g, ' ');
+
+            let nozomi_address, data_address, start, length
+            if (index_obj[term]) {
+                if (terms_length !== 1) break
+                const data = index_obj[term]
+                nozomi_address = data["url"]
+                data_address = data["data_url"]
+                start = data["start"]
+                length = data["length"]
+            }
+
+            if (/:/.test(term)) {
+                if (!nozomi_address) {
+                    index_obj[term] = {}
+                    let [area, tag] = term.split(/:/);
+                    nozomi_address = `//${domain}/${area}/${tag}-all.nozomi`;
+                    if (terms_length !== 1) nozomi_address = `//${domain}/n/${area}/${tag}-all.nozomi`;
+                    index_obj[term]["url"] = nozomi_address
+                }
+                if (terms_length === 1) {
+                    ids_obj = await nozomi_load({ url: nozomi_address, fetch_count: fetch_count });
+                    return ids_obj
+                } else {
+                    // index_obj[term]["data"] = await index_load({ url: nozomi_address, fetch_count: fetch_count, fetch_idjs: false });
+                    index_obj[term]["data"] = await nozomi_load({ url: nozomi_address, fetch_count: fetch_count, list: true, fetch_all: true });
+                }
+            } else {
+                if (!data_address) {
+                    index_obj[term] = {}
+                    const key = new Uint8Array(sha256.array(term).slice(0, 4))
+                    const version_url = `//${domain}/galleriesindex/version?_=${(new Date).getTime()}.index`
+                    const galleries_index_version = await xhr_get(version_url, { responseType: "text" })
+
+                    const index_url = `//${domain}/galleriesindex/galleries.${galleries_index_version}.index`
+                    const array_buf = await xhr_get(index_url, { step: 464 })
+                    const eight_array = new Uint8Array(array_buf);
+                    const node = decode_node(eight_array)
+                    const array_bytes = await b_tree(node, key, index_url)
+
+                    start = array_bytes[0]
+                    length = array_bytes[1]
+                    data_address = `//${domain}/galleriesindex/galleries.${galleries_index_version}.data`
+                    index_obj[term]["data_url"] = data_address
+                    index_obj[term]["start"] = start
+                    index_obj[term]["length"] = length
+                }
+
+                if (terms_length === 1) {
+                    ids_obj = await index_load({ url: data_address, start: start, fetch_count: fetch_count })
+                    return ids_obj
+                } else {
+                    index_obj[term]["data"] = await index_load({ url: data_address, start: start, step: length, fetch_count: fetch_count, list: true })
+                }
+            }
+        }
+
+        let results = []
+        const obj_keys = Object.keys(index_obj);
+        let intersection = new Set(index_obj[obj_keys[0]]["data"]);
+
+        for (let i = 1; i < obj_keys.length; i++) {
+            const currentData = index_obj[obj_keys[i]]["data"];
+            const temp_results = currentData.filter(x => intersection.has(x));
+            Array.prototype.push.apply(results, temp_results);
+
+            if (intersection.size === 0) break;
+        }
+        const start = fetch_count * GALLERIES_PER_PAGE
+        results = results.slice(start, start + GALLERIES_PER_PAGE)
+        ids_obj = await filter_contents(results)
+        return ids_obj
     }
 
-    async function get_search_suggestion(input, divSuggestionC, divSearchC) {
+    async function get_search_suggestion(input, divSuggestionC, divSearchC, only_fetch = false) {
         function encode_search_query_for_url(s) {
             return s.replace(/[ \/\.]/g, function(m) {
                 return {
@@ -451,7 +554,6 @@
         }
 
         const query = input.replace(/_/g, ' ');
-        const re = new RegExp(query, 'gi');
         let field = 'global', term = query
         if (query.indexOf(':') > -1) {
             const sides = query.split(/:/);
@@ -466,7 +568,10 @@
         }
         url += '.json';
 
-        const suggestions = await xhr_get(url, { "responseType": "json" })
+        const suggestions = await xhr_get(url, { responseType: "json" })
+        if (only_fetch) return suggestions
+
+        const re = new RegExp(query, 'gi');
         suggestions.forEach(suggestion => {
             const aS = document.createElement("a")
             const spanStext = document.createElement("span")
@@ -491,38 +596,17 @@
         divSuggestionC.style.width = rect.width + 'px';
     }
 
-    async function load(load_type, fetch_count) {
+    async function load(fetch_count, text) {
         fetching = true
-        let ids_obj
         const div_CardC = document.querySelector("div.CardContainer")
 
-        if (load_type === "home") {
-            const bytesArray = await xhr_get(`//${domain}/index-all.nozomi`, { fetch_count: fetch_count });
-            const view = new DataView(bytesArray);
-            const totalBytes = view.byteLength;
-            ids_obj = await filter_contents(totalBytes, view)
-        }
-        else if (load_type === "search") {
-            if (fetch_count === 0) {
-                leaf_obj = await select_leaf(SearchInput.value)
-                const inbuf = await xhr_get(leaf_obj["url"], { "start": leaf_obj["start"] + 4, "step": GALLERIES_PER_PAGE * 4 })
-                const eight_array = new Uint8Array(inbuf);
-                const view = new DataView(eight_array.buffer);
-                const totalBytes = view.byteLength;
-                ids_obj = await filter_contents(totalBytes, view)
-                div_CardC.innerHTML = "";
-            } else {
-                const inbuf = await xhr_get(leaf_obj["url"], { "start": leaf_obj["start"] + 4, "fetch_count": fetch_count })
-                const eight_array = new Uint8Array(inbuf);
-                const view = new DataView(eight_array.buffer);
-                const totalBytes = view.byteLength;
-                ids_obj = await filter_contents(totalBytes, view)
-            }
-        }
-        const ids_list = Object.keys(ids_obj)
-        let gallery_list = await fetch_gallery(ids_list);
+        if (fetch_count === 0) div_CardC.innerHTML = ""
+        const ids_obj = await select_leaf(text, fetch_count)
 
-        let promises = []
+        const ids_list = Object.keys(ids_obj)
+        const gallery_list = await fetch_gallery(ids_list.reverse());
+
+        const promises = []
         const fragment = document.createDocumentFragment();
         gallery_list.forEach(gallery => {
             promises.push(generate_card(gallery, ids_obj, fragment))
@@ -541,22 +625,22 @@
         };
     }
 
-    const FETCH_PAGENUM = false
+    const FETCH_IDJS = false
     const INF_SCROLL = true
-    const SCROLL_THRESHOLD = 0.7
     const MIN_PAGE = 0
     const GALLERIES_PER_PAGE = 25;
     const DEBOUNCE_TIME = 300
     const domain = 'ltn.gold-usergeneratedcontent.net';
     let fetching = false
     let fetch_count = 0
-    let leaf_obj = {}
+    let index_obj = {}
 
     document.documentElement.innerHTML = html;
-    await load("home")
+
+    const SearchInput = document.querySelector('div.SearchContainer input');
+    await load(fetch_count, SearchInput.value)
 
     let divSuggestionC = document.querySelector("div.SuggestionContainer")
-    const SearchInput = document.querySelector('div.SearchContainer input');
     const divSearchC = document.querySelector("div.SearchContainer")
     SearchInput.addEventListener('input', debounce(function() {
         if (!divSuggestionC) {
@@ -574,7 +658,7 @@
     const SearchButton = document.querySelector("button.SearchButton")
     SearchButton.addEventListener('click', async function() {
         fetch_count = 0
-        await load("search", fetch_count)
+        await load(fetch_count, SearchInput.value)
     });
 
     if (INF_SCROLL) {
@@ -582,11 +666,7 @@
             const entry = entries[0];
 
             if (entry.isIntersecting && !fetching) {
-                if (leaf_obj["text"]) {
-                    await load("search", fetch_count);
-                } else {
-                    await load("home", fetch_count);
-                }
+                await load(fetch_count, SearchInput.value);
             }
         }, {
             root: null,
