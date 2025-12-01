@@ -1,0 +1,70 @@
+query = k
+
+const max_node_size = 464;
+const galleries_index_version =
+    https://ltn.gold-usergeneratedcontent.net/galleriesindex/version?_=(new Date).getTime() and decode as b64 utf8
+
+    key = Uint8Array(sha256.array(query).slice(0, 4))
+const field = 'galleries';
+
+get_node_at_address(field, 0: adress).then((node) => {
+    if (field === 'galleries') {
+        url = '//' + domain + '/' + galleries_index_dir + '/galleries.' + galleries_index_version + '.index';
+        get_url_at_range(url, [address, address + max_node_size - 1]).then((nodedata) => {
+            xhr.open('GET', url);
+            xhr.setRequestHeader('Range', 'bytes=' + range[0].toString() + '-' + range[1].toString());
+            get_url_at_range().then = data
+            #posの定義は省略
+            let view = new DataView(data.buffer);
+            const number_of_datas = view.getInt32(pos, false /* big-endian */);
+            let datas = [];
+            for (let i = 0; i < number_of_datas; i++) {
+                const offset = view.getUint64(pos, false /* big-endian */);
+                pos += 8;
+
+                const length = view.getInt32(pos, false /* big-endian */);
+                pos += 4;
+
+                datas.push([offset, length]);
+            }
+            decode_node()でnode.datas = datasを定義
+            b_tree()でlocate_key()関数を実行
+            let [there, where] = locate_key(key, node);
+            !locate_key()とnode.keys.lengthをりたーん
+            compare_arraybuffers()を実行
+            keyとnode.keysを比較node > の場合return - 1逆return1
+            現在のnode_addressが０または、nodeaddressに0がない場合失敗
+            thereがtrueの状態を目指して繰り返し
+            get_node_at_address(field, node.subnode_addresses[where], serial).then((node) => {
+                B_search(field, key, node, serial).then(resolve);
+            });
+            xhrヘッダーoffset - offset + lengthのようにしてnozomi - index取り出し
+            indexのバッファをビッグで４バイト取り出すとidになる
+
+var filepath = decodeURIComponent(document.location.href.replace(/.*hitomi\.la\//, ''));
+var elements = filepath.replace(/\.html(?:\?page=\d+)?$/, '').split('-');
+tag = elements[0]
+if (/\//.test(tag))
+var area_elements = tag.split(/\//);
+if (['popular', 'date'].includes(area_elements[1])) {
+    orderby = area_elements[1];
+    //popular
+    orderbykey = area_elements[2];
+    //today
+    area_elements.splice(1, 2); //delete elements 2 and 3
+    //[series, female:filming]
+} else if (['popular', 'date'].includes(area_elements[0])) {
+    orderby = area_elements[0];
+    //popular
+    orderbykey = area_elements[1];
+    //today
+}
+if (area_elements.length !== 2) return;
+tag = area_elements[1];
+area = area_elements[0];
+if (area) {
+    nozomi_address = '//'+[domain, area, [tag, language].join('-')].join('/')+nozomiextension;
+    if (orderbykey && !['popular', 'date'].includes(area)) { //series/popular/today/female:filming-german
+        nozomi_address = '//'+[domain, area, orderby, orderbykey, [tag, language].join('-')].join('/')+nozomiextension;
+    }
+}

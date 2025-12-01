@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {margin: 0;}
+        ul {
+            position: absolute;
+            top: 5px; /* inputの高さに合わせて調整 */
+            left: 0;
+            z-index: 1; /* .flexの上に重ねるためにz-indexを指定 */
+            width: 100%; /* 必要に応じて幅を調整 */
+            background-color: grey;
+        }
+        .a {flex: 1; width: 100px; height: 100px; background-color: red;}
+        .b {flex: 1; width: 100px; height: 100px; background-color: green;}
+        .c {flex: 1; width: 100px; height: 100px; background-color: blue;}
+        .flex {display: flex; flex-direction: row; justify-content: center;}
+        .flex2 {display: flex; flex-direction: row; justify-content: space-between;}
+    </style>
+</head>
+<body>
+    <div class="flex2">
+        <div class="flex">
+            <input type="text">
+            <button>search</button>
+        </div>
+        <ul>
+            <li>a</li>
+            <li>a</li>
+            <li>a</li>
+            <li>a</li>
+            <li>a</li>
+        </ul>
+        <div class="flex">
+            <div class="a"></div>
+            <div class="b"></div>
+            <div class="c"></div>
+        </div>
+    </div>
+    <div class="flex">
+        <div class="a"></div>
+        <div class="b"></div>
+        <div class="c"></div>
+    </div>
+
+
+</body>
+</html>
