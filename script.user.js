@@ -1,13 +1,13 @@
 // ==UserScript==
-// @name         learn (async version)
+// @name         hitomi-enhanced-ltn
 // @namespace    Violentmonkey Scripts
 // @match        https://ltn.gold-usergeneratedcontent.net/page.css
 // @grant        none
 // @require      https://raw.github.com/emn178/js-sha256/master/build/sha256.min.js
-// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
 // @version      1.2
 // @author       -
 // ==/UserScript==
+// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
 
 (async function() {
     'use strict';
@@ -21,7 +21,9 @@
 
         <style>
             body {margin: 0; background-color: #212529;}
-            input {color: white; background-color: transparent; border: none; min-width: 0; font-weight: 700; width: 100%}
+            input {color: white}
+            .ActualInput {color: white; background-color: transparent; border: none; font-weight: 700; overflow: visable;}
+            input:focus { background-color: transparent; border: none; outline: none;}
             svg {color: white;}
             tr th {width: 100%;}
             strong {color: cyan;}
@@ -60,10 +62,12 @@
             .SuggestionArea {color: darkgrey}
             #scrollSentinel {height: 1px}
 
-            .SearchInput { display: flex; background-color: #212529;border: 1px solid #495057;border-radius: 0.375rem; color: white; flex: 1}
+            .SearchInput {width: 240px; overflow: auto; display: flex; background-color: #212529;border: 1px solid #495057;border-radius: 0.375rem; color: white;}
             .DefaultInput { display: flex; background-color: #212529;border: 1px solid #495057;border-radius: 0.375rem; color: white; flex: 1}
-            .BadgeContainer {display: flex; margin: 1%; max-width: 100px; overflow:auto}
+            .TagContainer {display: flex; align-items: center;}
             span svg {color: lightgrey; margin-right: 8px; cursor: pointer;}
+            .between_input {background-color: transparent; border: none; width: 1px;}
+
         </style>
     </head>
     <body>
@@ -75,17 +79,13 @@
                 <div class="InputContainer">
                     <div class="SearchContainer">
                         <div class="SearchInput">
-                            <div class="BadgeContainer">
-                            </div>
-                            <input type="text">
+                            <input class="ActualInput" type="text">
                         </div>
                         <button class="btn_gren_out" type="button">Search</button>
                     </div>
                     <div class="DefaultQueryContainer">
                         <div class="DefaultInput">
-                            <div class="BadgeContainer">
-                            </div>
-                            <input type="text">
+                            <input class="ActualInput" type="text">
                         </div>
                         <button class="btn_gren_out" type="button">Save</button>
                     </div>
@@ -566,7 +566,7 @@
         return ids_list
     }
 
-    async function get_search_suggestion(text, divSuggestionC, divSearchC, divBadgeC, only_tag2badge = false) {
+    async function get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput) {
         function encode_search_query_for_url(s) {
             return s.replace(/[ \/\.]/g, function(m) {
                 return {
@@ -577,18 +577,27 @@
             });
         }
 
-        function tag_to_badge(res, field, term, divBadgeC) {
+        function tag_to_badge(res, field, term, divSearchInput) {
             if (field === res[2] && term === res[0]) {
+                const input = `<input class="between_input" type="text" maxlength="0">`
                 const svg = `
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle-fill" viewBox="0 0 16 16">
                         <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z"/>
                     </svg>
                 `;
 
+                const divTagC = document.createElement("div")
+                divTagC.className = "TagContainer"
+                divTagC.innerHTML = input
+
                 const span = document.createElement("span");
                 span.className = "badge_green";
                 span.innerHTML = `${svg} ${field}:${term}`;  // SVGとテキストを両方入れる
-                divBadgeC.appendChild(span);
+
+                divTagC.appendChild(span)
+
+                const firstChild = divSearchInput.firstChild;
+                divSearchInput.insertBefore(divTagC, firstChild);
                 return true
             }
             return false
@@ -621,7 +630,7 @@
             const edited_list = input_list.slice(0, input_list.length - 1)
             for (let value of edited_list) {
                 let [res, field, term] = await return_json(value, true)
-                const success = tag_to_badge(res[0], field, term, divBadgeC)
+                const success = tag_to_badge(res[0], field, term, divSearchInput)
                 if (success) SearchInput.value = (SearchInput.value).replace(`${value} `, "")
             }
         }
@@ -630,6 +639,7 @@
         const suggestions = await return_json(input)
 
         const re = new RegExp(input.replace(/_/g, ' '), 'gi');
+
         suggestions.forEach(suggestion => {
             const aS = document.createElement("a")
             const spanStext = document.createElement("span")
@@ -670,7 +680,7 @@
                 divSuggestionC.style.display = 'none';
                 divSuggestionC.textContent = "";
 
-                const success = tag_to_badge(suggestion, field, term, divBadgeC)
+                const success = tag_to_badge(suggestion, field, term, divSearchInput)
                 if (success) SearchInput.value = ''
                 SearchInput.focus();
             });
@@ -680,6 +690,29 @@
         divSuggestionC.style.left = rect.left + 'px';
         divSuggestionC.style.top = rect.height + rect.top + 'px';
         divSuggestionC.style.width = rect.width + 'px';
+
+        divSearchInput.addEventListener('keydown', function(e) {
+            let i = 0
+            const suggest_array = Array.from(divSuggestionC.querySelectorAll('a'));
+            if (e.key === 'ArrowUp') {
+                let target_suggestion
+
+                if (i === 0) {
+                    target_suggestion = suggest_array[length(suggest_array) - 1]
+                    i = 9
+                } else {
+                    target_suggestion = suggest_array[i]
+                }
+                target_suggestion.focus()
+                i--
+            }
+            else if (e.key === 'ArrowDown') {
+                let target_suggestion
+                target_suggestion = suggest_array[i]
+                target_suggestion.focus()
+                i++
+            }
+        })
     }
 
     async function load(fetch_count, text) {
@@ -703,6 +736,80 @@
         fetching = false
     }
 
+    function tags_handler(divSearchInput) {
+        divSearchInput.addEventListener('click', function(event) {
+            if (event.target.closest('.bi-x-circle-fill')) {
+                event.target.closest('.TagContainer').remove();
+            }
+        });
+
+        divSearchInput.addEventListener('keydown', function(e) {
+            const currentInput = e.target;
+
+            if (currentInput.tagName !== 'INPUT') return;
+
+            const inputs = Array.from(divSearchInput.querySelectorAll('input'));
+            const currentIndex = inputs.indexOf(currentInput);
+
+            const isSelectionEmpty = currentInput.selectionStart === currentInput.selectionEnd;
+
+            if (e.key === 'Backspace' && isSelectionEmpty && currentInput.selectionStart === 0) {
+                let tagToRemove = null;
+
+                if (currentInput.classList.contains('ActualInput')) {
+                    const tags = divSearchInput.querySelectorAll('.TagContainer');
+                    if (tags.length > 0) {
+                        tagToRemove = tags[tags.length - 1];
+                    }
+                } else {
+                    const currentContainer = currentInput.closest('.TagContainer');
+                    if (currentContainer && currentContainer.previousElementSibling) {
+                        tagToRemove = currentContainer.previousElementSibling;
+                    }
+                }
+
+                if (tagToRemove && tagToRemove.classList.contains('TagContainer')) {
+                    e.preventDefault();
+
+                    const badge = tagToRemove.querySelector('span');
+                    let extractedText = badge.outerText;
+
+                    tagToRemove.remove();
+
+                    const actualInput = container.querySelector('.ActualInput');
+                    const originalValue = actualInput.value;
+
+                    actualInput.value = extractedText + originalValue;
+
+                    actualInput.focus();
+                    actualInput.setSelectionRange(extractedText.length, extractedText.length);
+                }
+            }
+
+            else if (e.key === 'ArrowLeft' && isSelectionEmpty && currentInput.selectionStart === 0) {
+                e.preventDefault();
+                let nextIndex = currentIndex - 1;
+                if (nextIndex < 0) nextIndex = inputs.length - 1;
+
+                const targetInput = inputs[nextIndex];
+                targetInput.focus();
+                const len = targetInput.value.length;
+                targetInput.setSelectionRange(len, len);
+            }
+
+            else if (e.key === 'ArrowRight' && isSelectionEmpty && currentInput.selectionStart === currentInput.value.length) {
+                e.preventDefault();
+                let nextIndex = currentIndex + 1;
+                if (nextIndex >= inputs.length) nextIndex = 0;
+
+                const targetInput = inputs[nextIndex];
+                targetInput.focus();
+                const len = targetInput.value.length;
+                targetInput.setSelectionRange(len, len);
+            }
+        });
+    }
+
     function debounce(func, delay) {
         let timeout;
         return (...args) => {
@@ -724,11 +831,12 @@
     document.documentElement.innerHTML = html;
 
     const SearchInput = document.querySelector('div.SearchInput input');
+    const divSearchInput = document.querySelector('div.SearchInput');
+
     await load(fetch_count, SearchInput.value)
 
     let divSuggestionC = document.querySelector("div.SuggestionContainer")
     const divSearchC = document.querySelector("div.SearchContainer")
-    const divBadgeC = document.querySelector("div.BadgeContainer")
 
     SearchInput.addEventListener('input', debounce(async function() {
         if (!divSuggestionC) {
@@ -739,7 +847,7 @@
         }
         divSuggestionC.textContent = "";
         const text = SearchInput.value
-        await get_search_suggestion(text, divSuggestionC, divSearchC, divBadgeC);
+        await get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput);
         if (divSuggestionC.children.length > 0) {
             divSuggestionC.style.display = 'block';
         } else {
@@ -747,6 +855,7 @@
         }
     }, DEBOUNCE_TIME));
 
+    tags_handler(divSearchInput)
 
     document.addEventListener('click', function(event) {
         if (!divSuggestionC) return;

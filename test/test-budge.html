@@ -3,24 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Input Loop Navigation</title>
     <style>
         span {display: flex; width: fit-content;}
         svg {color: lightgrey; margin-right: 8px; cursor: pointer;}
-        .badge_blue {background-color: #0d6efd; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
+        .badge_blue {background-color: #0d6efd; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; align-items: center;}
+        .SearchContainer {display: flex; border: 1px solid; padding: 4px; align-items: center;}
+        .actual_input {background-color: transparent; border: none; flex: 1}
+        .between_input {background-color: transparent; border: none; width: 1px;}
+        .TagContainer {display: flex; align-items: center;}
+        input:focus { background-color: transparent; border: none; outline: none;}
     </style>
 </head>
 <body>
-    <span class="badge_blue">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle-fill" viewBox="0 0 16 16">
-            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z"/>
-        </svg>
-        asdfasdf
-    </span>
+    <div class="SearchContainer">
+        <div class="TagContainer">
+            <input class="between_input" type="text" maxlength="0">
+            <span class="badge_blue">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle-fill" viewBox="0 0 16 16">
+                    <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z"/>
+                </svg>
+                Tag A
+            </span>
+        </div>
+        <div class="TagContainer">
+            <input class="between_input" type="text" maxlength="0">
+            <span class="badge_blue">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle-fill" viewBox="0 0 16 16">
+                    <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z"/>
+                </svg>
+                Tag B
+            </span>
+        </div>
+        <input class="actual_input" type="text">
+    </div>
 
     <script>
-        document.querySelector('.bi-x-circle-fill').addEventListener('click', function(event) {
-            event.target.closest('span').remove();
+        const container = document.querySelector('.SearchContainer');
+
+        // 削除ロジック（×ボタンクリック時）
+        container.addEventListener('click', function(event) {
+            if (event.target.closest('.bi-x-circle-fill')) {
+                event.target.closest('.TagContainer').remove();
+            }
+        });
+
+        // キー操作ロジック
+        container.addEventListener('keydown', function(e) {
+            const currentInput = e.target; // で現在入力中のインプット
+
+            // input以外なら処理しない
+            if (currentInput.tagName !== 'INPUT') return;
+
+            // コンテナ内の全てのinputを取得して配列化
+            const inputs = Array.from(container.querySelectorAll('input'));
+            const currentIndex = inputs.indexOf(currentInput);
+            
+            const isSelectionEmpty = currentInput.selectionStart === currentInput.selectionEnd; //セレクトしていない場合、同じになるのでtrue
+
+            // ■ Backspaceキー処理（タグを戻す処理）
+            // 条件：Backspaceキー かつ 選択範囲なし かつ カーソルが先頭(0)
+            if (e.key === 'Backspace' && isSelectionEmpty && currentInput.selectionStart === 0) {
+                let tagToRemove = null; //何もない箇所でバックスペースを押した際に実行される
+
+                // 現在位置に応じて削除対象のタグを特定
+                if (currentInput.classList.contains('actual_input')) {
+                    // 現在入力中のインプットからactualinputを探し、一番右のタグコンテイナを削除対象に
+                    const tags = container.querySelectorAll('.TagContainer');
+                    if (tags.length > 0) {
+                        tagToRemove = tags[tags.length - 1];
+                    }
+                } else {
+                    // between_inputにいる場合、その親要素(TagContainer)の一つ前の兄弟要素を取得
+                    const currentContainer = currentInput.closest('.TagContainer'); // betweeninputから右側のものが選ばれる
+                    if (currentContainer && currentContainer.previousElementSibling) { 
+                        tagToRemove = currentContainer.previousElementSibling; //ほしいのは左側なので、previousElementSibling
+                    }
+                }
+
+                // 削除対象が見つかった場合の処理
+                if (tagToRemove && tagToRemove.classList.contains('TagContainer')) {
+                    e.preventDefault(); // デフォルトの削除動作を防ぐ
+
+                    // 1. span内のテキストを取得（SVGなどを除外してテキストノードのみ抽出）
+                    const badge = tagToRemove.querySelector('.badge_blue');
+                    let extractedText = badge.outerText;
+
+                    // let extractedText = '';
+                    // badge.childNodes.forEach(node => {
+                    //     // テキストノード(Type 3)のみ取得
+                    //     if (node.nodeType === Node.TEXT_NODE) {
+                    //         extractedText += node.textContent;
+                    //     }
+                    // });
+                    // extractedText = extractedText.trim();
+
+                    // 2. タグを削除
+                    tagToRemove.remove();
+
+                    // 3. テキストを actual_input に戻す
+                    // 常にメインの入力欄に戻す（between_inputは文字が入らないため）
+                    const actualInput = container.querySelector('.actual_input');
+                    const originalValue = actualInput.value;
+                    
+                    // 現在の入力値の先頭に、タグのテキストを結合
+                    actualInput.value = extractedText + originalValue;
+
+                    // 4. フォーカスを合わせ、カーソル位置を「戻したテキストの後ろ」にセット
+                    actualInput.focus();
+                    actualInput.setSelectionRange(extractedText.length, extractedText.length);
+                }
+            }
+
+            // ■ 左矢印キー処理
+            else if (e.key === 'ArrowLeft' && isSelectionEmpty && currentInput.selectionStart === 0) {
+                e.preventDefault();
+                let nextIndex = currentIndex - 1;
+                if (nextIndex < 0) nextIndex = inputs.length - 1;
+
+                const targetInput = inputs[nextIndex];
+                targetInput.focus();
+                const len = targetInput.value.length; 
+                targetInput.setSelectionRange(len, len);//0,0ではactualinputに文字を入力している際、一番うしろのカーソルを合わせれない
+            }
+
+            // ■ 右矢印キー処理
+            else if (e.key === 'ArrowRight' && isSelectionEmpty && currentInput.selectionStart === currentInput.value.length) {
+                e.preventDefault();
+                let nextIndex = currentIndex + 1;
+                if (nextIndex >= inputs.length) nextIndex = 0;
+
+                const targetInput = inputs[nextIndex];
+                targetInput.focus();
+                const len = targetInput.value.length; 
+                targetInput.setSelectionRange(len, len);
+            }
         });
     </script>
 </body>
