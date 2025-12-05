@@ -58,6 +58,7 @@
             .SuggestionContainer {margin: 0; position: absolute; z-index: 1; background-color: #212529; color: white; border: 1px solid dimgrey; border-radius: 0.375rem;}
             .Suggestion { display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
             .Suggestion:hover { background-color: #2c2f33; display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
+            .SuggestionFocus { background-color: #2c2f33; display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
             .SuggestionText {flex: 1; overflow: hidden; text-overflow: ellipsis; }
             .SuggestionArea {color: darkgrey}
             #scrollSentinel {height: 1px}
@@ -592,7 +593,7 @@
 
                 const span = document.createElement("span");
                 span.className = "badge_green";
-                span.innerHTML = `${svg} ${field}:${term}`;  // SVGとテキストを両方入れる
+                span.innerHTML = `${svg} ${field}:${term}`;
 
                 divTagC.appendChild(span)
 
@@ -623,7 +624,6 @@
             return suggestions
         }
 
-        // const query = text.replace(/_/g, ' ');
         const input_list = text.split(/\s+/)
 
         if (input_list.length >= 2) {
@@ -661,28 +661,19 @@
             aS.addEventListener('click', function() {
                 const field = suggestion[2];
                 const term = suggestion[0];
-                // const namespace = suggestion[2];
-                // const tagName = suggestion[0].replace(/ /g, '_');
-                // const newTag = `${namespace}:${tagName}`;
-                //
-                // let currentVal = SearchInput.value;
-                //
-                // const terms = currentVal.trim().split(/\s+/);
-                //
-                // if (currentVal.length > 0 && !currentVal.endsWith(' ')) {
-                //     terms.pop();
-                // }
-                //
-                // terms.push(newTag);
-                //
-                // SearchInput.value = terms.join(' ') + ' ';
 
                 divSuggestionC.style.display = 'none';
                 divSuggestionC.textContent = "";
 
                 const success = tag_to_badge(suggestion, field, term, divSearchInput)
                 if (success) SearchInput.value = ''
-                SearchInput.focus();
+
+                // 修正点1: setTimeoutを使ってフォーカス処理を遅らせる
+                setTimeout(() => {
+                    SearchInput.focus();
+                }, 0);
+
+                divSearchInput.removeEventListener("keydown", arrow_process)
             });
 
         })
@@ -691,28 +682,49 @@
         divSuggestionC.style.top = rect.height + rect.top + 'px';
         divSuggestionC.style.width = rect.width + 'px';
 
-        divSearchInput.addEventListener('keydown', function(e) {
-            let i = 0
+        let i = -1;
+        function arrow_process(e) {
             const suggest_array = Array.from(divSuggestionC.querySelectorAll('a'));
-            if (e.key === 'ArrowUp') {
-                let target_suggestion
+            const max = suggest_array.length - 1;
+            if (suggest_array.length === 0) return;
 
-                if (i === 0) {
-                    target_suggestion = suggest_array[length(suggest_array) - 1]
-                    i = 9
-                } else {
-                    target_suggestion = suggest_array[i]
-                }
-                target_suggestion.focus()
-                i--
+            function applyFocusClass() {
+                suggest_array.forEach(a => a.classList.remove('SuggestionFocus'));
+                suggest_array[i].classList.add('SuggestionFocus');
+
+                // 修正点2: ここで .focus() を呼ばないようにする
+                // これによりフォーカスが入力欄に残ったままになり、操作性が向上します
+                // suggest_array[i].focus(); 
+            };
+
+            // ↑キー
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (i <= 0) i = max;
+                else i--;
+                applyFocusClass();
             }
+
+            // ↓キー
             else if (e.key === 'ArrowDown') {
-                let target_suggestion
-                target_suggestion = suggest_array[i]
-                target_suggestion.focus()
-                i++
+                e.preventDefault();
+                if (i >= max) i = 0;
+                else i++;
+                applyFocusClass();
             }
-        })
+
+            // Enterキーで現在の候補をクリック
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (i >= 0 && i < suggest_array.length) {
+                    suggest_array[i].click();
+                }
+            }
+        };
+        // 重複登録を防ぐため、念のため古いリスナーがあれば削除してから追加するのが安全ですが、
+        // 現状のロジックだとdebounceごとに呼ばれるため、ここではそのままにします
+        divSearchInput.removeEventListener('keydown', arrow_process); // 追加しておくと安全です
+        divSearchInput.addEventListener('keydown', arrow_process)
     }
 
     async function load(fetch_count, text) {
