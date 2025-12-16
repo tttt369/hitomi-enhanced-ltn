@@ -126,7 +126,7 @@
         return ids_list
     }
 
-    async function filter_contents(ids_list, fetch_idjs = FETCH_IDJS) {
+    async function filter_contents(ids_list, fetch_idjs = CONFIG.fetch_idjs) {
         function fetch_page_num(id) {
             const res = {};
             return new Promise((resolve) => {
@@ -136,7 +136,7 @@
                     return;
                 }
                 const script = document.createElement('script');
-                script.src = `//${domain}/galleries/${id}.js`;
+                script.src = `//${STATE.domain}/galleries/${id}.js`;
                 script.onload = () => {
                     if (typeof galleryinfo !== 'undefined' && galleryinfo.files) {
                         const pageCount = galleryinfo.files.length;
@@ -170,7 +170,7 @@
         if (!fetch_idjs) return ids_obj
 
         for (const [key, value] of Object.entries(ids_obj)) {
-            if (value < MIN_PAGE) {
+            if (value < CONFIG.min_page) {
                 delete ids_obj[key]
             }
         }
@@ -182,8 +182,7 @@
         const {
             responseType = 'arraybuffer',
             start = 0,
-            step = GALLERIES_PER_PAGE * 4,
-            fetch_count = 0,
+            step = CONFIG.galleries_per_page * 4,
             fetch_all = false,
             return_status = false
         } = options;
@@ -194,7 +193,7 @@
             xhr.responseType = responseType;
 
             if (responseType === "arraybuffer" && !fetch_all) {
-                const actualStart = start + step * fetch_count;
+                const actualStart = start + step * STATE.fetch_count;
                 xhr.setRequestHeader("Range", `bytes=${actualStart}-${actualStart + step - 1}`);
             }
 
@@ -210,12 +209,12 @@
 
     async function fetch_gallery(ids_list) {
         const gallery_list = [];
-        const end = Math.min(ids_list.length, GALLERIES_PER_PAGE);
+        const end = Math.min(ids_list.length, CONFIG.galleries_per_page);
 
         const promises = [];
         for (let i = 0; i < end; ++i) {
             const galleryId = ids_list[i];
-            const url = `//${domain}/galleryblock/${galleryId}.html`;
+            const url = `//${STATE.domain}/galleryblock/${galleryId}.html`;
             promises.push(xhr_get(url, { responseType: "text" }));
         }
 
@@ -224,7 +223,7 @@
             if (r.status === 'fulfilled') gallery_list.push(r.value);
         });
 
-        ++fetch_count
+        ++STATE.fetch_count
         return gallery_list;
     }
 
@@ -316,7 +315,7 @@
         )
     };
 
-    async function select_leaf(text, fetch_count) {
+    async function select_leaf(text) {
         DataView.prototype.getUint64 = function(byteOffset, littleEndian) {
             // split 64-bit number into two 32-bit (4-byte) parts
             const left = this.getUint32(byteOffset, littleEndian);
@@ -437,13 +436,13 @@
 
         // async function nozomi_load(options = {}) {
         //     const {
-        //         url = `//${domain}/index-all.nozomi`,
-        //         fetch_count = 0,
-        //         step = GALLERIES_PER_PAGE * 4,
+        //         url = `//${STATE.domain}/index-all.nozomi`,
+        //         STATE.fetch_count = 0,
+        //         step = CONFIG.galleries_per_page * 4,
         //         list = false,
         //         fetch_all = false
         //     } = options;
-        //     const bytesArray = await xhr_get(url, { fetch_count: fetch_count, step: step, fetch_all: fetch_all });
+        //     const bytesArray = await xhr_get(url, { STATE.fetch_count: STATE.fetch_count, step: step, fetch_all: fetch_all });
         //     const view = new DataView(bytesArray);
         //     const totalBytes = view.byteLength;
         //     const ids_list = get_ids(totalBytes, view)
@@ -456,12 +455,12 @@
         //     const {
         //         url = undefined,
         //         start = 0,
-        //         fetch_count = 0,
-        //         step = GALLERIES_PER_PAGE * 4,
+        //         STATE.fetch_count = 0,
+        //         step = CONFIG.galleries_per_page * 4,
         //         list = false,
         //         fetch_all = false
         //     } = options;
-        //     const inbuf = await xhr_get(url, { fetch_count: fetch_count, start: start + 4, step: step, fetch_all: fetch_all })
+        //     const inbuf = await xhr_get(url, { STATE.fetch_count: STATE.fetch_count, start: start + 4, step: step, fetch_all: fetch_all })
         //     const eight_array = new Uint8Array(inbuf);
         //     const view = new DataView(eight_array.buffer);
         //     const totalBytes = view.byteLength;
@@ -473,12 +472,11 @@
 
         async function nozomi_load(options = {}) {
             const {
-                url = `//${domain}/index-all.nozomi`,
-                fetch_count = 0,
-                step = GALLERIES_PER_PAGE * 4,
+                url = `//${STATE.domain}/index-all.nozomi`,
+                step = CONFIG.galleries_per_page * 4,
                 fetch_all = true
             } = options;
-            const bytesArray = await xhr_get(url, { fetch_count: fetch_count, step: step, fetch_all: fetch_all });
+            const bytesArray = await xhr_get(url, { step: step, fetch_all: fetch_all });
             const view = new DataView(bytesArray);
             const totalBytes = view.byteLength;
             const ids_list = get_ids(totalBytes, view)
@@ -488,11 +486,10 @@
         async function index_load(options = {}) {
             const {
                 url = undefined,
-                fetch_count = 0,
                 start = 0,
-                step = GALLERIES_PER_PAGE * 4,
+                step = CONFIG.galleries_per_page * 4,
             } = options;
-            const inbuf = await xhr_get(url, { fetch_count: fetch_count, start: start + 4, step: step })
+            const inbuf = await xhr_get(url, { start: start + 4, step: step })
             const eight_array = new Uint8Array(inbuf);
             const view = new DataView(eight_array.buffer);
             const totalBytes = view.byteLength;
@@ -502,7 +499,7 @@
 
         let ids_list
         if (!text) {
-            ids_list = await nozomi_load({ fetch_count: fetch_count, fetch_all: false })
+            ids_list = await nozomi_load({ fetch_all: false })
             return ids_list
         }
 
@@ -514,25 +511,25 @@
             term = term.replace(/_/g, ' ');
 
             let nozomi_address, data_address, start, length
-            if (index_obj[term]) {
+            if (STATE.index_obj[term]) {
                 if (terms_length !== 1) continue
             }
 
             if (/:/.test(term)) {
-                index_obj[term] = {}
+                STATE.index_obj[term] = {}
 
                 let [area, tag] = term.split(/:/);
-                nozomi_address = `//${domain}/${area}/${tag}-all.nozomi`;
-                if (terms_length !== 1) nozomi_address = `//${domain}/n/${area}/${tag}-all.nozomi`;
-                index_obj[term]["url"] = nozomi_address
-                index_obj[term]["data"] = await nozomi_load({ url: nozomi_address, fetch_count: fetch_count });
+                nozomi_address = `//${STATE.domain}/${area}/${tag}-all.nozomi`;
+                if (terms_length !== 1) nozomi_address = `//${STATE.domain}/n/${area}/${tag}-all.nozomi`;
+                STATE.index_obj[term]["url"] = nozomi_address
+                STATE.index_obj[term]["data"] = await nozomi_load({ url: nozomi_address });
             } else {
-                index_obj[term] = {}
+                STATE.index_obj[term] = {}
                 const key = new Uint8Array(sha256.array(term).slice(0, 4))
-                const version_url = `//${domain}/galleriesindex/version?_=${(new Date).getTime()}.index`
+                const version_url = `//${STATE.domain}/galleriesindex/version?_=${(new Date).getTime()}.index`
                 const galleries_index_version = await xhr_get(version_url, { responseType: "text" })
 
-                const index_url = `//${domain}/galleriesindex/galleries.${galleries_index_version}.index`
+                const index_url = `//${STATE.domain}/galleriesindex/galleries.${galleries_index_version}.index`
                 const array_buf = await xhr_get(index_url, { step: 464 })
                 const eight_array = new Uint8Array(array_buf);
                 const node = decode_node(eight_array)
@@ -540,30 +537,30 @@
 
                 start = array_bytes[0]
                 length = array_bytes[1]
-                data_address = `//${domain}/galleriesindex/galleries.${galleries_index_version}.data`
-                index_obj[term]["data_url"] = data_address
-                index_obj[term]["start"] = start
-                index_obj[term]["length"] = length
-                index_obj[term]["data"] = await index_load({ url: data_address, start: start, step: length, fetch_count: fetch_count })
+                data_address = `//${STATE.domain}/galleriesindex/galleries.${galleries_index_version}.data`
+                STATE.index_obj[term]["data_url"] = data_address
+                STATE.index_obj[term]["start"] = start
+                STATE.index_obj[term]["length"] = length
+                STATE.index_obj[term]["data"] = await index_load({ url: data_address, start: start, step: length })
             }
         }
 
         let results = []
-        const obj_keys = Object.keys(index_obj);
+        const obj_keys = Object.keys(STATE.index_obj);
 
-        if (terms_length === 1) return index_obj[obj_keys[0]]["data"]
+        if (terms_length === 1) return STATE.index_obj[obj_keys[0]]["data"]
 
-        let intersection = new Set(index_obj[obj_keys[0]]["data"]);
+        let intersection = new Set(STATE.index_obj[obj_keys[0]]["data"]);
 
         for (let i = 1; i < obj_keys.length; i++) {
-            const currentData = index_obj[obj_keys[i]]["data"];
+            const currentData = STATE.index_obj[obj_keys[i]]["data"];
             const temp_results = currentData.filter(x => intersection.has(x));
             Array.prototype.push.apply(results, temp_results);
 
             if (intersection.size === 0) break;
         }
-        const start = fetch_count * GALLERIES_PER_PAGE
-        ids_list = results.slice(start, start + GALLERIES_PER_PAGE)
+        const start = STATE.fetch_count * CONFIG.galleries_per_page
+        ids_list = results.slice(start, start + CONFIG.galleries_per_page)
         return ids_list
     }
 
@@ -597,8 +594,8 @@
 
                 divTagC.appendChild(span)
 
-                const firstChild = divSearchInput.firstChild;
-                divSearchInput.insertBefore(divTagC, firstChild);
+                const ActualInput = document.querySelector('.ActualInput')
+                divSearchInput.insertBefore(divTagC, ActualInput);
                 return true
             }
             return false
@@ -671,6 +668,7 @@
                 SearchInput.focus();
                 divSearchInput.scrollLeft = divSearchInput.scrollWidth;
                 divSearchInput.removeEventListener("keydown", arrow_process)
+                i = -1;
             });
 
         })
@@ -722,12 +720,12 @@
         divSearchInput.addEventListener('keydown', arrow_process)
     }
 
-    async function load(fetch_count, text) {
-        fetching = true
+    async function load(text) {
+        STATE.fetching = true
         const div_CardC = document.querySelector("div.CardContainer")
 
-        if (fetch_count === 0) div_CardC.innerHTML = ""
-        const ids_list = await select_leaf(text, fetch_count)
+        if (STATE.fetch_count === 0) div_CardC.innerHTML = ""
+        const ids_list = await select_leaf(text, STATE.fetch_count)
         const gallery_list = await fetch_gallery(ids_list);
 
         const ids_obj = await filter_contents(ids_list)
@@ -740,7 +738,7 @@
 
         await Promise.allSettled(promises);
         div_CardC.appendChild(fragment);
-        fetching = false
+        STATE.fetching = false
     }
 
     function tags_handler(divSearchInput) {
@@ -783,7 +781,7 @@
 
                     tagToRemove.remove();
 
-                    const actualInput = container.querySelector('.ActualInput');
+                    const actualInput = document.querySelector('.ActualInput');
                     const originalValue = actualInput.value;
 
                     actualInput.value = extractedText + originalValue;
@@ -825,22 +823,37 @@
         };
     }
 
-    const FETCH_IDJS = false
-    const INF_SCROLL = true
-    const MIN_PAGE = 0
-    const GALLERIES_PER_PAGE = 25;
-    const DEBOUNCE_TIME = 300
-    const domain = 'ltn.gold-usergeneratedcontent.net';
-    let fetching = false
-    let fetch_count = 0
-    let index_obj = {}
+    function replaceChars(str) {
+        const map = {
+            '\n': ' ',
+            ' ': '_',
+            '/': 'slash',
+            '.': 'dot'
+        };
+        return str.replace(/[\n /.]/g, ch => map[ch]);
+    }
+
+    const CONFIG = {
+        fetch_idjs: false,
+        inf_scroll: true,
+        min_page: 0,
+        galleries_per_page: 25,
+        debounce_time: 300
+    };
+
+    const STATE = {
+        domain: 'ltn.gold-usergeneratedcontent.net',
+        fetching: false,
+        fetch_count: 0,
+        index_obj: {}
+    };
 
     document.documentElement.innerHTML = html;
 
     const SearchInput = document.querySelector('div.SearchInput input');
     const divSearchInput = document.querySelector('div.SearchInput');
 
-    await load(fetch_count, SearchInput.value)
+    await load(STATE.fetch_count, SearchInput.value)
 
     let divSuggestionC = document.querySelector("div.SuggestionContainer")
     const divSearchC = document.querySelector("div.SearchContainer")
@@ -860,7 +873,7 @@
         } else {
             divSuggestionC.style.display = 'none';
         }
-    }, DEBOUNCE_TIME));
+    }, CONFIG.debounce_time));
 
     tags_handler(divSearchInput)
 
@@ -878,16 +891,17 @@
 
     const SearchButton = document.querySelector(".SearchContainer button")
     SearchButton.addEventListener('click', async function() {
-        fetch_count = 0
-        await load(fetch_count, SearchInput.value)
+        STATE.fetch_count = 0
+        const text = replaceChars(divSearchInput.outerText)
+        await load(STATE.fetch_count, text)
     });
 
-    if (INF_SCROLL) {
+    if (CONFIG.inf_scroll) {
         const observer = new IntersectionObserver(async (entries) => {
             const entry = entries[0];
 
-            if (entry.isIntersecting && !fetching) {
-                await load(fetch_count, SearchInput.value);
+            if (entry.isIntersecting && !STATE.fetching) {
+                await load(STATE.fetch_count, SearchInput.value);
             }
         }, {
             root: null,
