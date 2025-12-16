@@ -668,11 +668,8 @@
                 const success = tag_to_badge(suggestion, field, term, divSearchInput)
                 if (success) SearchInput.value = ''
 
-                // 修正点1: setTimeoutを使ってフォーカス処理を遅らせる
-                setTimeout(() => {
-                    SearchInput.focus();
-                }, 0);
-
+                SearchInput.focus();
+                divSearchInput.scrollLeft = divSearchInput.scrollWidth;
                 divSearchInput.removeEventListener("keydown", arrow_process)
             });
 
@@ -721,8 +718,6 @@
                 }
             }
         };
-        // 重複登録を防ぐため、念のため古いリスナーがあれば削除してから追加するのが安全ですが、
-        // 現状のロジックだとdebounceごとに呼ばれるため、ここではそのままにします
         divSearchInput.removeEventListener('keydown', arrow_process); // 追加しておくと安全です
         divSearchInput.addEventListener('keydown', arrow_process)
     }
