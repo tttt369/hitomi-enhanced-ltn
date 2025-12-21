@@ -128,7 +128,7 @@
     }
 
     async function filter_contents(idsList, fetchIdjs = CONFIG.fetchIdjs) {
-        function fetch_page_num(id) {
+        function fetch_page_num(id, fetchIdjs) {
             const res = {};
             return new Promise((resolve) => {
                 if (!fetchIdjs) {
@@ -331,7 +331,7 @@
             return combined;
         }
 
-        function decode_node(bytesArray) {
+        function decode_node(eightArray) {
             let pos = 0;
             let NODE = {
                 keys: [],
@@ -339,7 +339,7 @@
                 subNodeAddresses: [],
             };
 
-            const view = new DataView(bytesArray.buffer);
+            const view = new DataView(eightArray.buffer);
             const numberOfKeys = view.getInt32(pos, false);
             pos += 4;
 
@@ -351,7 +351,7 @@
                     return;
                 }
                 pos += 4;
-                keys.push(bytesArray.slice(pos, pos + keySize));
+                keys.push(eightArray.slice(pos, pos + keySize));
                 pos += keySize;
             }
 
@@ -481,7 +481,7 @@
                 if (termsLength !== 1) continue
             }
 
-            if (/:/.test(term)) {
+            if (term.includes(':')) {
                 STATE.indexObj[term] = {}
 
                 let [area, tag] = term.split(/:/);
@@ -531,29 +531,25 @@
     }
 
     async function get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput, actualInput) {
-        function tag_to_badge(res, field, term, divSearchInput, actualInput) {
-            if (field === res[2] && term === res[0]) {
-                const input = `<input class="BetweenInput" type="text" maxlength="0">`
-                const svg = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle-fill" viewBox="0 0 16 16">
-                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z"/>
-                    </svg>
-                `;
+        function tag_to_badge(field, term, divSearchInput, actualInput) {
+            const input = `<input class="BetweenInput" type="text" maxlength="0">`
+            const svg = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle-fill" viewBox="0 0 16 16">
+                    <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z"/>
+                </svg>
+            `;
 
-                const divTagC = document.createElement("div")
-                divTagC.className = "TagContainer"
-                divTagC.innerHTML = input
+            const divTagC = document.createElement("div")
+            divTagC.className = "TagContainer"
+            divTagC.innerHTML = input
 
-                const span = document.createElement("span");
-                span.className = "BadgeGreen";
-                span.innerHTML = `${svg} ${field}:${term}`;
+            const span = document.createElement("span");
+            span.className = "BadgeGreen";
+            span.innerHTML = `${svg} ${field}:${term}`;
 
-                divTagC.appendChild(span)
+            divTagC.appendChild(span)
 
-                divSearchInput.insertBefore(divTagC, actualInput);
-                return true
-            }
-            return false
+            divSearchInput.insertBefore(divTagC, actualInput);
         }
 
         async function return_json(query, checkValid = false) {
@@ -573,8 +569,20 @@
             }
             url += '.json';
 
-            const [suggestions, statusRes] = await xhr_get(url, { responseType: "json", returnStatus: true })
-            if (checkValid && statusRes && suggestions.length === 1) return [suggestions, true]
+            const suggestions = await xhr_get(url, { responseType: "json" })
+            if (checkValid) {
+                let isvalid = false;
+                if (!istag) return [suggestions[0], isvalid];
+                
+                for (let i = 0; i < suggestions.length; i++) {
+                    const suggest = suggestions[i];
+                    if (suggest[0] === term && suggest[2] === field) {
+                        isvalid = true;
+                        break;
+                    }
+                }
+                return [suggestions[0], isvalid];
+            }
             return suggestions
         }
 
@@ -583,17 +591,19 @@
         if (inputList.length >= 2) {
             const editedList = inputList.slice(0, inputList.length - 1)
             for (let value of editedList) {
-                let [res, field, term] = await return_json(value, true)
-                const boolSuccess = tag_to_badge(res[0], field, term, divSearchInput, actualInput)
-                if (boolSuccess) inputSearchInput.value = (inputSearchInput.value).replace(`${value} `, "")
+                let [suggestions, boolSuccess] = await return_json(value, true)
+                if (!boolSuccess) return
+                tag_to_badge(suggestions[2], suggestions[0], divSearchInput, actualInput)
+                actualInput.value = (actualInput.value).replace(`${value} `, "")
             }
         }
 
-        const input = inputList.slice(-1)[0];
-        const suggestions = await return_json(input)
+        const lastInput = inputList.slice(-1)[0];
+        const suggestions = await return_json(lastInput)
 
-        const re = new RegExp((decode_query(input)), 'gi');
+        const re = new RegExp((decode_query(lastInput)), 'gi');
 
+        let suggestionIndex = -1;
         suggestions.forEach(suggestion => {
             const aS = document.createElement("a")
             const spanStext = document.createElement("span")
@@ -619,61 +629,52 @@
                 divSuggestionC.style.display = 'none';
                 divSuggestionC.textContent = "";
 
-                const success = tag_to_badge(suggestion, field, term, divSearchInput, actualInput)
-                if (success) inputSearchInput.value = ''
+                tag_to_badge(field, term, divSearchInput, actualInput)
+                actualInput.value = ''
 
-                inputSearchInput.focus();
+                actualInput.focus();
                 divSearchInput.scrollLeft = divSearchInput.scrollWidth;
-                divSearchInput.removeEventListener("keydown", arrow_process)
-                i = -1;
+                divSearchInput.removeEventListener('keydown', arrow_process)
+                suggestionIndex = -1
             });
-
         })
         const rect = divSearchC.getBoundingClientRect();
         divSuggestionC.style.left = rect.left + 'px';
         divSuggestionC.style.top = rect.height + rect.top + 'px';
         divSuggestionC.style.width = rect.width + 'px';
 
-        let i = -1;
         function arrow_process(e) {
+            function apply_focus_class() {
+                suggestionsArray.forEach(a => a.classList.remove('SuggestionFocus'));
+                suggestionsArray[suggestionIndex].classList.add('SuggestionFocus');
+            };
+
             const suggestionsArray = Array.from(divSuggestionC.querySelectorAll('a'));
             const max = suggestionsArray.length - 1;
             if (suggestionsArray.length === 0) return;
 
-            function apply_focus_class() {
-                suggestionsArray.forEach(a => a.classList.remove('SuggestionFocus'));
-                suggestionsArray[i].classList.add('SuggestionFocus');
-
-                // 修正点2: ここで .focus() を呼ばないようにする
-                // これによりフォーカスが入力欄に残ったままになり、操作性が向上します
-                // suggestionsArray[i].focus(); 
-            };
-
-            // ↑キー
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                if (i <= 0) i = max;
-                else i--;
+                if (suggestionIndex <= 0) suggestionIndex = max;
+                else suggestionIndex--;
                 apply_focus_class();
             }
 
-            // ↓キー
             else if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                if (i >= max) i = 0;
-                else i++;
+                if (suggestionIndex >= max) suggestionIndex = 0;
+                else suggestionIndex++;
                 apply_focus_class();
             }
 
-            // Enterキーで現在の候補をクリック
             else if (e.key === 'Enter') {
                 e.preventDefault();
-                if (i >= 0 && i < suggestionsArray.length) {
-                    suggestionsArray[i].click();
+                if (suggestionIndex >= 0 && suggestionIndex < suggestionsArray.length) {
+                    suggestionsArray[suggestionIndex].click();
                 }
             }
         };
-        divSearchInput.removeEventListener('keydown', arrow_process); // 追加しておくと安全です
+        divSearchInput.removeEventListener('keydown', arrow_process)
         divSearchInput.addEventListener('keydown', arrow_process)
     }
 
@@ -682,8 +683,9 @@
         const divCardC = document.querySelector("div.CardContainer")
 
         if (STATE.fetchCount === 0) divCardC.innerHTML = ""
-        const idsList = await select_leaf(text, STATE.fetchCount)
-        const galleriesList = await fetch_gallery(idsList);
+        const idsList = await select_leaf(text, STATE.fetchCount) // STATE.indexObj
+
+        const galleriesList = await fetch_gallery(idsList); // STATE.fetchCount
 
         const idsObj = await filter_contents(idsList)
 
@@ -698,20 +700,31 @@
         STATE.fetching = false
     }
 
-    function tags_handler(divSearchInput, actualInput) {
+    function suggestion_listener(divSearchInput, actualInput, divSearchC, divSuggestionC) {
         divSearchInput.addEventListener('click', function(event) {
             if (event.target.closest('.bi-x-circle-fill')) {
                 event.target.closest('.TagContainer').remove();
             }
         });
 
+        document.addEventListener('click', function(event) {
+            const isClickInsideSearch = divSearchC.contains(event.target);
+            const isClickInsideSuggestions = divSuggestionC.contains(event.target);
+
+            if (!isClickInsideSearch && !isClickInsideSuggestions) {
+                divSuggestionC.textContent = "";
+                divSuggestionC.style.display = 'none';
+            }
+        });
+
+
         divSearchInput.addEventListener('keydown', function(e) {
             const currentInput = e.target;
 
             if (currentInput.tagName !== 'INPUT') return;
 
-            const inputs = Array.from(divSearchInput.querySelectorAll('input'));
-            const currentIndex = inputs.indexOf(currentInput);
+            const inputsArray = Array.from(divSearchInput.querySelectorAll('input'));
+            const currentIndex = inputsArray.indexOf(currentInput);
 
             const isSelectionEmpty = currentInput.selectionStart === currentInput.selectionEnd;
 
@@ -750,9 +763,9 @@
             else if (e.key === 'ArrowLeft' && isSelectionEmpty && currentInput.selectionStart === 0) {
                 e.preventDefault();
                 let nextIndex = currentIndex - 1;
-                if (nextIndex < 0) nextIndex = inputs.length - 1;
+                if (nextIndex < 0) nextIndex = inputsArray.length - 1;
 
-                const targetInput = inputs[nextIndex];
+                const targetInput = inputsArray[nextIndex];
                 targetInput.focus();
                 const len = targetInput.value.length;
                 targetInput.setSelectionRange(len, len);
@@ -761,9 +774,9 @@
             else if (e.key === 'ArrowRight' && isSelectionEmpty && currentInput.selectionStart === currentInput.value.length) {
                 e.preventDefault();
                 let nextIndex = currentIndex + 1;
-                if (nextIndex >= inputs.length) nextIndex = 0;
+                if (nextIndex >= inputsArray.length) nextIndex = 0;
 
-                const targetInput = inputs[nextIndex];
+                const targetInput = inputsArray[nextIndex];
                 targetInput.focus();
                 const len = targetInput.value.length;
                 targetInput.setSelectionRange(len, len);
@@ -806,6 +819,14 @@
         return query;
     }
 
+    function search_listener(searchButton, divSearchInput) {
+        searchButton.addEventListener('click', async function() {
+            STATE.fetchCount = 0
+            const text = decode_query(divSearchInput.outerText)
+            await load(STATE.fetchCount, text) // STATE.fetching
+        });
+    }
+
     const CONFIG = {
         fetchIdjs: false,
         infScroll: true,
@@ -828,12 +849,13 @@
     const divSearchC = document.querySelector("div.SearchContainer")
     const divSuggestionC = document.querySelector("div.SuggestionContainer")
     const actualInput = document.querySelector('.ActualInput')
+    const searchButton = document.querySelector(".SearchContainer button")
 
-    await load(STATE.fetchCount, inputSearchInput.value)
+    await load(STATE.fetchCount, actualInput.value) // STATE.fetching
 
-    inputSearchInput.addEventListener('input', debounce(async function() {
+    actualInput.addEventListener('input', debounce(async function() {
         divSuggestionC.textContent = "";
-        const text = inputSearchInput.value
+        const text = actualInput.value
         await get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput, actualInput);
         if (divSuggestionC.children.length > 0) {
             divSuggestionC.style.display = 'block';
@@ -842,33 +864,15 @@
         }
     }, CONFIG.debounceTime));
 
-    tags_handler(divSearchInput, actualInput)
-
-    document.addEventListener('click', function(event) {
-        if (!divSuggestionC) return;
-
-        const isClickInsideSearch = divSearchC.contains(event.target);
-        const isClickInsideSuggestions = divSuggestionC.contains(event.target);
-
-        if (!isClickInsideSearch && !isClickInsideSuggestions) {
-            divSuggestionC.textContent = "";
-            divSuggestionC.style.display = 'none';
-        }
-    });
-
-    const searchButton = document.querySelector(".SearchContainer button")
-    searchButton.addEventListener('click', async function() {
-        STATE.fetchCount = 0
-        const text = decode_query(divSearchInput.outerText)
-        await load(STATE.fetchCount, text)
-    });
+    suggestion_listener(divSearchInput, actualInput, divSearchC, divSuggestionC)
+    search_listener(searchButton, divSearchInput) // STATE.fetching, STATE.fetchCount
 
     if (CONFIG.infScroll) {
         const observer = new IntersectionObserver(async (entries) => {
             const entry = entries[0];
 
             if (entry.isIntersecting && !STATE.fetching) {
-                await load(STATE.fetchCount, inputSearchInput.value);
+                await load(STATE.fetchCount, actualInput.value); // STATE.fetching
             }
         }, {
             root: null,
