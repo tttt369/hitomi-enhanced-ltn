@@ -27,13 +27,13 @@
             svg {color: white;}
             tr th {width: 100%;}
             strong {color: cyan;}
-            .btn_gren_out {color: #198754; background-color: transparent; border: 1px solid #198754; border-radius: 0.375rem;}
-            .btn_gren_out:hover {color: white; background-color: #198754;}
-            .btn_gren {color: white; background-color: #198754; border: 1px solid #198754; border-radius: 0.375rem;}
-            .btn_red {color: white; background-color: #a13643; border: 1px solid #a13643; border-radius: 0.375rem;}
-            .badge_grey {background-color: #6c757d; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
-            .badge_blue {display: flex; align-items: center; background-color: #0d6efd; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; white-space: nowrap;}
-            .badge_green {display: flex; align-items: center; background-color: #28a745; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; white-space: nowrap;}
+            .BtnGreenOut {color: #198754; background-color: transparent; border: 1px solid #198754; border-radius: 0.375rem;}
+            .BtnGreenOut:hover {color: white; background-color: #198754;}
+            .BtnGreen {color: white; background-color: #198754; border: 1px solid #198754; border-radius: 0.375rem;}
+            .BtnRed {color: white; background-color: #a13643; border: 1px solid #a13643; border-radius: 0.375rem;}
+            .BadgeGrey {background-color: #6c757d; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
+            .BadgeBlue {display: flex; align-items: center; background-color: #0d6efd; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; white-space: nowrap;}
+            .BadgeGreen {display: flex; align-items: center; background-color: #28a745; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; white-space: nowrap;}
             .Container {display: flex; flex-direction: column; justify-content: center;}
             .NavbarContainer {display: flex; flex-direction: row; justify-content: space-between; width: 100%; height: 100px; background-color: #2b3035;}
             .NavbarContainer a {margin: auto auto auto 0;}
@@ -55,7 +55,7 @@
             .Card {display: flex; flex-direction: column; flex: 1 1 194px; max-width: 220px; height: 475px; margin: 1%; background-color: #212529; overflow: hidden; justify-content: space-between; border-radius:0.375rem; border:1px solid #343a40}
             .Card img {height: 220px; object-fit: cover; width: 100%;}
             .PageContainer {height: 100px; background-color: white;}
-            .SuggestionContainer {margin: 0; position: absolute; z-index: 1; background-color: #212529; color: white; border: 1px solid dimgrey; border-radius: 0.375rem;}
+            .SuggestionContainer {display: none; margin: 0; position: absolute; z-index: 1; background-color: #212529; color: white; border: 1px solid dimgrey; border-radius: 0.375rem;}
             .Suggestion { display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
             .Suggestion:hover { background-color: #2c2f33; display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
             .SuggestionFocus { background-color: #2c2f33; display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
@@ -67,7 +67,7 @@
             .DefaultInput { display: flex; background-color: #212529;border: 1px solid #495057;border-radius: 0.375rem; color: white; flex: 1}
             .TagContainer {display: flex; align-items: center;}
             span svg {color: lightgrey; margin-right: 8px; cursor: pointer;}
-            .between_input {background-color: transparent; border: none; width: 1px;}
+            .BetweenInput {background-color: transparent; border: none; width: 1px;}
 
         </style>
     </head>
@@ -82,13 +82,14 @@
                         <div class="SearchInput">
                             <input class="ActualInput" type="text">
                         </div>
-                        <button class="btn_gren_out" type="button">Search</button>
+                        <button class="BtnGreenOut" type="button">Search</button>
+                        <div class="SuggestionContainer"></div>
                     </div>
                     <div class="DefaultQueryContainer">
                         <div class="DefaultInput">
                             <input class="ActualInput" type="text">
                         </div>
-                        <button class="btn_gren_out" type="button">Save</button>
+                        <button class="BtnGreenOut" type="button">Save</button>
                     </div>
                 </div>
             </div>
@@ -97,12 +98,12 @@
                 <path d="M13.354.646a1.207 1.207 0 0 0-1.708 0L8.5 3.793l-.646-.647a.5.5 0 1 0-.708.708L8.293 5l-7.147 7.146A.5.5 0 0 0 1 12.5v1.793l-.854.853a.5.5 0 1 0 .708.707L1.707 15H3.5a.5.5 0 0 0 .354-.146L11 7.707l1.146 1.147a.5.5 0 0 0 .708-.708l-.647-.646 3.147-3.146a1.207 1.207 0 0 0 0-1.708zM2 12.707l7-7L10.293 7l-7 7H2z"/>
                 </svg>
                 <div class="BtnContainer">
-                    <button class="btn_gren">
+                    <button class="BtnGreen">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle-fill" viewBox="0 0 16 16">
                         <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M8.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3z"/>
                         </svg>
                     </button>
-                    <button class="btn_red">
+                    <button class="BtnRed">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-dash-circle-fill" viewBox="0 0 16 16">
                         <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M4.5 7.5a.5.5 0 0 0 0 1h7a.5.5 0 0 0 0-1z"/>
                         </svg>
@@ -117,20 +118,20 @@
     `;
 
 
-    function get_ids(total_bytes, view) {
-        const ids_list = []
-        for (let i = 0; i < total_bytes; i += 4) {
+    function get_ids(totalBytes, view) {
+        const idsList = []
+        for (let i = 0; i < totalBytes; i += 4) {
             const id = view.getUint32(i, false);
-            ids_list.push(id)
+            idsList.push(id)
         };
-        return ids_list
+        return idsList
     }
 
-    async function filter_contents(ids_list, fetch_idjs = CONFIG.fetch_idjs) {
+    async function filter_contents(idsList, fetchIdjs = CONFIG.fetchIdjs) {
         function fetch_page_num(id) {
             const res = {};
             return new Promise((resolve) => {
-                if (!fetch_idjs) {
+                if (!fetchIdjs) {
                     res[id] = null;
                     resolve(res);
                     return;
@@ -149,42 +150,42 @@
             });
         }
 
-        const ids_obj = {}
+        const idsObj = {}
         const promises = []
 
-        ids_list.forEach(id => {
-            promises.push(fetch_page_num(id, fetch_idjs));
+        idsList.forEach(id => {
+            promises.push(fetch_page_num(id, fetchIdjs));
         })
 
-        const promises_list = await Promise.allSettled(promises);
+        const promisesList = await Promise.allSettled(promises);
 
-        promises_list.forEach(r => {
+        promisesList.forEach(r => {
             if (r.status === 'fulfilled' && r.value) {
                 const keys = Object.keys(r.value)[0]
                 const values = Object.values(r.value)[0]
-                ids_obj[keys] = values
+                idsObj[keys] = values
             }
         });
 
-        console.log('ids_obj IDs sample:', ids_obj);
-        if (!fetch_idjs) return ids_obj
+        console.log('idsObj IDs sample:', idsObj);
+        if (!fetchIdjs) return idsObj
 
-        for (const [key, value] of Object.entries(ids_obj)) {
-            if (value < CONFIG.min_page) {
-                delete ids_obj[key]
+        for (const [key, value] of Object.entries(idsObj)) {
+            if (value < CONFIG.minPage) {
+                delete idsObj[key]
             }
         }
-        console.log('ids_obj IDs sample:', ids_obj);
-        return ids_obj
+        console.log('idsObj IDs sample:', idsObj);
+        return idsObj
     };
 
     function xhr_get(url, options = {}) {
         const {
             responseType = 'arraybuffer',
             start = 0,
-            step = CONFIG.galleries_per_page * 4,
-            fetch_all = false,
-            return_status = false
+            step = CONFIG.galleriesPerPage * 4,
+            fetchAll = false,
+            returnStatus = false
         } = options;
 
         return new Promise((resolve) => {
@@ -192,14 +193,14 @@
             xhr.open('GET', url, true);
             xhr.responseType = responseType;
 
-            if (responseType === "arraybuffer" && !fetch_all) {
-                const actualStart = start + step * STATE.fetch_count;
+            if (responseType === "arraybuffer" && !fetchAll) {
+                const actualStart = start + step * STATE.fetchCount;
                 xhr.setRequestHeader("Range", `bytes=${actualStart}-${actualStart + step - 1}`);
             }
 
             xhr.onload = () => {
                 if (xhr.status === 200 || xhr.status === 206) {
-                    if (return_status) resolve([xhr.response, xhr.status])
+                    if (returnStatus) resolve([xhr.response, xhr.status])
                     resolve(xhr.response);
                 }
             };
@@ -207,27 +208,27 @@
         });
     }
 
-    async function fetch_gallery(ids_list) {
-        const gallery_list = [];
-        const end = Math.min(ids_list.length, CONFIG.galleries_per_page);
+    async function fetch_gallery(idsList) {
+        const galleriesList = [];
+        const end = Math.min(idsList.length, CONFIG.galleriesPerPage);
 
         const promises = [];
         for (let i = 0; i < end; ++i) {
-            const galleryId = ids_list[i];
+            const galleryId = idsList[i];
             const url = `//${STATE.domain}/galleryblock/${galleryId}.html`;
             promises.push(xhr_get(url, { responseType: "text" }));
         }
 
         const results = await Promise.allSettled(promises);
         results.forEach(r => {
-            if (r.status === 'fulfilled') gallery_list.push(r.value);
+            if (r.status === 'fulfilled') galleriesList.push(r.value);
         });
 
-        ++STATE.fetch_count
-        return gallery_list;
+        ++STATE.fetchCount
+        return galleriesList;
     }
 
-    function generate_card(gallery, ids_obj, div_CardC) {
+    function generate_card(gallery, idsObj, divCardC) {
         return new Promise((resolve) => {
             function create_table(type, listOrItem, container, defaultText = 'N/A') {
                 const isList = Array.isArray(listOrItem) || listOrItem instanceof NodeList;
@@ -242,15 +243,15 @@
 
             function generate_tags(tags, container) {
                 if (tags.length === 0) {
-                    const a_tag = document.createElement('a');
-                    a_tag.className = 'badge_blue';
-                    container.appendChild(a_tag);
+                    const aTag = document.createElement('a');
+                    aTag.className = 'BadgeBlue';
+                    container.appendChild(aTag);
                 } else {
                     Array.from(tags).forEach(tag => {
                         const clone = tag.cloneNode(true);
                         if (clone.textContent === '...') return;
 
-                        clone.className = 'badge_blue';
+                        clone.className = 'BadgeBlue';
                         container.appendChild(clone);
                     }
                     );
@@ -273,43 +274,43 @@
             const reNum = url.match(/.*-(\d+)\.html/);
             const id = reNum?.[1];
 
-            const div_Card = document.createElement("div")
-            div_Card.className = "Card"
+            const divCard = document.createElement("div")
+            divCard.className = "Card"
 
-            const div_tableC = document.createElement("div")
-            div_tableC.className = "CardTableContainer"
+            const divTableC = document.createElement("div")
+            divTableC.className = "CardTableContainer"
 
-            const a_CardTitle = document.createElement("a")
-            a_CardTitle.className = "CardTitle"
+            const aCardTitle = document.createElement("a")
+            aCardTitle.className = "CardTitle"
 
             const table = document.createElement("table")
 
-            const a_page = document.createElement("a")
-            a_page.className = "page badge_grey"
+            const aPage = document.createElement("a")
+            aPage.className = "page BadgeGrey"
 
-            const div_tagC = document.createElement("div")
-            div_tagC.className = "CardTagsContainer"
+            const divTagC = document.createElement("div")
+            divTagC.className = "CardTagsContainer"
 
-            const a_pic = document.createElement("a")
-            a_pic.href = url.replace("ltn.gold-usergeneratedcontent.net", "hitomi.la")
-            a_pic.target = "_blank"
+            const aPic = document.createElement("a")
+            aPic.href = url.replace("ltn.gold-usergeneratedcontent.net", "hitomi.la")
+            aPic.target = "_blank"
 
-            a_pic.appendChild(pic)
-            div_Card.appendChild(a_pic)
-            div_CardC.appendChild(div_Card)
-            div_Card.appendChild(div_tableC)
-            div_tableC.appendChild(a_CardTitle)
-            div_tableC.appendChild(table)
-            div_Card.appendChild(a_page)
-            div_Card.appendChild(div_tagC)
+            aPic.appendChild(pic)
+            divCard.appendChild(aPic)
+            divCardC.appendChild(divCard)
+            divCard.appendChild(divTableC)
+            divTableC.appendChild(aCardTitle)
+            divTableC.appendChild(table)
+            divCard.appendChild(aPage)
+            divCard.appendChild(divTagC)
 
-            a_CardTitle.textContent = title
+            aCardTitle.textContent = title
             create_table("language", language, table)
             create_table("type", type, table)
             create_table("artist", artistList, table)
             create_table('series', seriesList, table)
-            a_page.textContent = ids_obj[id] ? `${ids_obj[id]}p` : "N/A"
-            generate_tags(tags, div_tagC)
+            aPage.textContent = idsObj[id] ? `${idsObj[id]}p` : "N/A"
+            generate_tags(tags, divTagC)
             resolve()
         }
         )
@@ -330,64 +331,64 @@
             return combined;
         }
 
-        function decode_node(byte_array) {
+        function decode_node(bytesArray) {
             let pos = 0;
-            let node = {
+            let NODE = {
                 keys: [],
                 datas: [],
-                subnode_addresses: [],
+                subNodeAddresses: [],
             };
 
-            const view = new DataView(byte_array.buffer);
-            const number_of_keys = view.getInt32(pos, false /* big-endian */);
+            const view = new DataView(bytesArray.buffer);
+            const numberOfKeys = view.getInt32(pos, false);
             pos += 4;
 
             let keys = [];
-            for (let i = 0; i < number_of_keys; i++) {
-                const key_size = view.getInt32(pos, false /* big-endian */);
-                if (!key_size || key_size > 32) {
-                    console.error("fatal: !key_size || key_size > 32");
+            for (let i = 0; i < numberOfKeys; i++) {
+                const keySize = view.getInt32(pos, false);
+                if (!keySize || keySize > 32) {
+                    console.error("fatal: !keySize || keySize > 32");
                     return;
                 }
                 pos += 4;
-                keys.push(byte_array.slice(pos, pos + key_size));
-                pos += key_size;
+                keys.push(bytesArray.slice(pos, pos + keySize));
+                pos += keySize;
             }
 
-            const number_of_datas = view.getInt32(pos, false /* big-endian */);
+            const numberOfDates = view.getInt32(pos, false);
             pos += 4;
 
             let datas = [];
-            for (let i = 0; i < number_of_datas; i++) {
-                const offset = view.getUint64(pos, false /* big-endian */);
+            for (let i = 0; i < numberOfDates; i++) {
+                const offset = view.getUint64(pos, false);
                 pos += 8;
 
-                const length = view.getInt32(pos, false /* big-endian */);
+                const length = view.getInt32(pos, false);
                 pos += 4;
 
                 datas.push([offset, length]);
             }
 
             const B = 16;
-            const number_of_subnode_addresses = B + 1;
+            const numberOfSubnodeAddresses = B + 1;
 
-            let subnode_addresses = [];
-            for (let i = 0; i < number_of_subnode_addresses; i++) {
-                let subnode_address = view.getUint64(pos, false /* big-endian */);
+            let subNodeAddresses = [];
+            for (let i = 0; i < numberOfSubnodeAddresses; i++) {
+                let subnodeAddress = view.getUint64(pos, false);
                 pos += 8;
 
-                subnode_addresses.push(subnode_address);
+                subNodeAddresses.push(subnodeAddress);
             }
 
-            node.keys = keys;
-            node.datas = datas;
-            node.subnode_addresses = subnode_addresses;
-            return node;
+            NODE.keys = keys;
+            NODE.datas = datas;
+            NODE.subNodeAddresses = subNodeAddresses;
+            return NODE;
         }
 
-        function compare_key(node, key) {
+        function compare_key(NODE, key) {
             let i;
-            let cmp_result = -1;
+            let cmpResult = -1;
 
             function compare_arraybuffers(dv1, dv2) {
                 const top = Math.min(dv1.byteLength, dv2.byteLength);
@@ -401,183 +402,138 @@
                 return 0;
             };
             function is_leaf() {
-                for (let i = 0; i < node.subnode_addresses.length; i++) {
-                    if (node.subnode_addresses[i]) {
+                for (let i = 0; i < NODE.subNodeAddresses.length; i++) {
+                    if (NODE.subNodeAddresses[i]) {
                         return 0;
                     }
                 }
                 return 1;
             };
 
-            for (i = 0; i < node.keys.length; i++) {
-                cmp_result = compare_arraybuffers(key, node.keys[i]);
-                if (cmp_result <= 0) {
+            for (i = 0; i < NODE.keys.length; i++) {
+                cmpResult = compare_arraybuffers(key, NODE.keys[i]);
+                if (cmpResult <= 0) {
                     break;
                 }
             }
-            return [!cmp_result, i, is_leaf()];
+            return [!cmpResult, i, is_leaf()];
         };
 
-        async function b_tree(node, key, index_url) {
-            let [there, where, isleaf] = compare_key(node, key)
+        async function b_tree(NODE, key, indexUrl) {
+            let [there, where, isLeaf] = compare_key(NODE, key)
             if (there) {
-                return node.datas[where];
-            } else if (isleaf) {
+                return NODE.datas[where];
+            } else if (isLeaf) {
                 return Error
             }
-            if (node.subnode_addresses[where] == 0) {
+            if (NODE.subNodeAddresses[where] == 0) {
                 return Error
             }
-            const byte_array = await xhr_get(index_url, { start: node.subnode_addresses[where], step: 464 })
-            const eight_array = new Uint8Array(byte_array);
-            node = decode_node(eight_array)
-            return await b_tree(node, key, index_url)
+            const bytesArray = await xhr_get(indexUrl, { start: NODE.subNodeAddresses[where], step: 464 })
+            const eightArray = new Uint8Array(bytesArray);
+            NODE = decode_node(eightArray)
+            return await b_tree(NODE, key, indexUrl)
         }
-
-        // async function nozomi_load(options = {}) {
-        //     const {
-        //         url = `//${STATE.domain}/index-all.nozomi`,
-        //         STATE.fetch_count = 0,
-        //         step = CONFIG.galleries_per_page * 4,
-        //         list = false,
-        //         fetch_all = false
-        //     } = options;
-        //     const bytesArray = await xhr_get(url, { STATE.fetch_count: STATE.fetch_count, step: step, fetch_all: fetch_all });
-        //     const view = new DataView(bytesArray);
-        //     const totalBytes = view.byteLength;
-        //     const ids_list = get_ids(totalBytes, view)
-        //     if (list) return ids_list
-        //     const ids_obj = await filter_contents(ids_list)
-        //     return ids_obj
-        // }
-        //
-        // async function index_load(options = {}) {
-        //     const {
-        //         url = undefined,
-        //         start = 0,
-        //         STATE.fetch_count = 0,
-        //         step = CONFIG.galleries_per_page * 4,
-        //         list = false,
-        //         fetch_all = false
-        //     } = options;
-        //     const inbuf = await xhr_get(url, { STATE.fetch_count: STATE.fetch_count, start: start + 4, step: step, fetch_all: fetch_all })
-        //     const eight_array = new Uint8Array(inbuf);
-        //     const view = new DataView(eight_array.buffer);
-        //     const totalBytes = view.byteLength;
-        //     const ids_list = get_ids(totalBytes - 4, view)
-        //     if (list) return ids_list
-        //     const ids_obj = await filter_contents(ids_list)
-        //     return ids_obj
-        // }
 
         async function nozomi_load(options = {}) {
             const {
                 url = `//${STATE.domain}/index-all.nozomi`,
-                step = CONFIG.galleries_per_page * 4,
-                fetch_all = true
+                step = CONFIG.galleriesPerPage * 4,
+                fetchAll = true
             } = options;
-            const bytesArray = await xhr_get(url, { step: step, fetch_all: fetch_all });
+            const bytesArray = await xhr_get(url, { step: step, fetchAll: fetchAll });
             const view = new DataView(bytesArray);
             const totalBytes = view.byteLength;
-            const ids_list = get_ids(totalBytes, view)
-            return ids_list
+            const idsList = get_ids(totalBytes, view)
+            return idsList
         }
 
         async function index_load(options = {}) {
             const {
                 url = undefined,
                 start = 0,
-                step = CONFIG.galleries_per_page * 4,
+                step = CONFIG.galleriesPerPage * 4,
             } = options;
             const inbuf = await xhr_get(url, { start: start + 4, step: step })
-            const eight_array = new Uint8Array(inbuf);
-            const view = new DataView(eight_array.buffer);
+            const eightArray = new Uint8Array(inbuf);
+            const view = new DataView(eightArray.buffer);
             const totalBytes = view.byteLength;
-            const ids_list = get_ids(totalBytes - 4, view)
-            return ids_list
+            const idsList = get_ids(totalBytes - 4, view)
+            return idsList
         }
 
-        let ids_list
+        let idsList
         if (!text) {
-            ids_list = await nozomi_load({ fetch_all: false })
-            return ids_list
+            idsList = await nozomi_load({ fetchAll: false })
+            return idsList
         }
 
-        let query_string = decodeURIComponent(text).replace(/^\?/, '');
-        let terms = query_string.toLowerCase().trim().split(/\s+/);
-        const terms_length = terms.length
+        let queryString = decodeURIComponent(text).replace(/^\?/, '');
+        let terms = queryString.toLowerCase().trim().split(/\s+/);
+        const termsLength = terms.length
 
         for (let term of terms) {
-            term = term.replace(/_/g, ' ');
+            // term = term.replace(/_/g, ' ');
+            term = decode_query(term)
 
-            let nozomi_address, data_address, start, length
-            if (STATE.index_obj[term]) {
-                if (terms_length !== 1) continue
+            let nozimiAddress, dataAddress, start, length
+            if (STATE.indexObj[term]) {
+                if (termsLength !== 1) continue
             }
 
             if (/:/.test(term)) {
-                STATE.index_obj[term] = {}
+                STATE.indexObj[term] = {}
 
                 let [area, tag] = term.split(/:/);
-                nozomi_address = `//${STATE.domain}/${area}/${tag}-all.nozomi`;
-                if (terms_length !== 1) nozomi_address = `//${STATE.domain}/n/${area}/${tag}-all.nozomi`;
-                STATE.index_obj[term]["url"] = nozomi_address
-                STATE.index_obj[term]["data"] = await nozomi_load({ url: nozomi_address });
+                nozimiAddress = `//${STATE.domain}/${area}/${tag}-all.nozomi`;
+                if (termsLength !== 1) nozimiAddress = `//${STATE.domain}/n/${area}/${tag}-all.nozomi`;
+                STATE.indexObj[term]["url"] = nozimiAddress
+                STATE.indexObj[term]["data"] = await nozomi_load({ url: nozimiAddress });
             } else {
-                STATE.index_obj[term] = {}
+                STATE.indexObj[term] = {}
                 const key = new Uint8Array(sha256.array(term).slice(0, 4))
-                const version_url = `//${STATE.domain}/galleriesindex/version?_=${(new Date).getTime()}.index`
-                const galleries_index_version = await xhr_get(version_url, { responseType: "text" })
+                const versionUrl = `//${STATE.domain}/galleriesindex/version?_=${(new Date).getTime()}.index`
+                const galleriesIndexVersion = await xhr_get(versionUrl, { responseType: "text" })
 
-                const index_url = `//${STATE.domain}/galleriesindex/galleries.${galleries_index_version}.index`
-                const array_buf = await xhr_get(index_url, { step: 464 })
-                const eight_array = new Uint8Array(array_buf);
-                const node = decode_node(eight_array)
-                const array_bytes = await b_tree(node, key, index_url)
+                const indexUrl = `//${STATE.domain}/galleriesindex/galleries.${galleriesIndexVersion}.index`
+                const arrayBuf = await xhr_get(indexUrl, { step: 464 })
+                const eightArray = new Uint8Array(arrayBuf);
+                const NODE = decode_node(eightArray)
+                const bytesList = await b_tree(NODE, key, indexUrl)
 
-                start = array_bytes[0]
-                length = array_bytes[1]
-                data_address = `//${STATE.domain}/galleriesindex/galleries.${galleries_index_version}.data`
-                STATE.index_obj[term]["data_url"] = data_address
-                STATE.index_obj[term]["start"] = start
-                STATE.index_obj[term]["length"] = length
-                STATE.index_obj[term]["data"] = await index_load({ url: data_address, start: start, step: length })
+                start = bytesList[0]
+                length = bytesList[1]
+                dataAddress = `//${STATE.domain}/galleriesindex/galleries.${galleriesIndexVersion}.data`
+                STATE.indexObj[term]["data_url"] = dataAddress
+                STATE.indexObj[term]["start"] = start
+                STATE.indexObj[term]["length"] = length
+                STATE.indexObj[term]["data"] = await index_load({ url: dataAddress, start: start, step: length })
             }
         }
 
         let results = []
-        const obj_keys = Object.keys(STATE.index_obj);
+        const keysObj = Object.keys(STATE.indexObj);
 
-        if (terms_length === 1) return STATE.index_obj[obj_keys[0]]["data"]
+        if (termsLength === 1) return STATE.indexObj[keysObj[0]]["data"]
 
-        let intersection = new Set(STATE.index_obj[obj_keys[0]]["data"]);
+        let intersection = new Set(STATE.indexObj[keysObj[0]]["data"]);
 
-        for (let i = 1; i < obj_keys.length; i++) {
-            const currentData = STATE.index_obj[obj_keys[i]]["data"];
-            const temp_results = currentData.filter(x => intersection.has(x));
-            Array.prototype.push.apply(results, temp_results);
+        for (let i = 1; i < keysObj.length; i++) {
+            const currentData = STATE.indexObj[keysObj[i]]["data"];
+            const tempResults = currentData.filter(x => intersection.has(x));
+            Array.prototype.push.apply(results, tempResults);
 
             if (intersection.size === 0) break;
         }
-        const start = STATE.fetch_count * CONFIG.galleries_per_page
-        ids_list = results.slice(start, start + CONFIG.galleries_per_page)
-        return ids_list
+        const start = STATE.fetchCount * CONFIG.galleriesPerPage
+        idsList = results.slice(start, start + CONFIG.galleriesPerPage)
+        return idsList
     }
 
-    async function get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput) {
-        function encode_search_query_for_url(s) {
-            return s.replace(/[ \/\.]/g, function(m) {
-                return {
-                    ' ': '_',
-                    '/': 'slash',
-                    '.': 'dot',
-                }[m];
-            });
-        }
-
-        function tag_to_badge(res, field, term, divSearchInput) {
+    async function get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput, actualInput) {
+        function tag_to_badge(res, field, term, divSearchInput, actualInput) {
             if (field === res[2] && term === res[0]) {
-                const input = `<input class="between_input" type="text" maxlength="0">`
+                const input = `<input class="BetweenInput" type="text" maxlength="0">`
                 const svg = `
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle-fill" viewBox="0 0 16 16">
                         <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z"/>
@@ -589,53 +545,54 @@
                 divTagC.innerHTML = input
 
                 const span = document.createElement("span");
-                span.className = "badge_green";
+                span.className = "BadgeGreen";
                 span.innerHTML = `${svg} ${field}:${term}`;
 
                 divTagC.appendChild(span)
 
-                const ActualInput = document.querySelector('.ActualInput')
-                divSearchInput.insertBefore(divTagC, ActualInput);
+                divSearchInput.insertBefore(divTagC, actualInput);
                 return true
             }
             return false
         }
 
-        async function return_json(query, return_sides = false) {
-            query = query.replace(/_/g, ' ');
-            let field = 'global', term = query
-            if (query.indexOf(':') > -1) {
+        async function return_json(query, checkValid = false) {
+            query = decode_query(query)
+
+            let field = 'global', term = query, istag = false
+            if (query.includes(':')) {
                 const sides = query.split(/:/);
                 field = sides[0];
                 term = sides[1];
+                istag = true
             }
-            const chars = term.split('').map(encode_search_query_for_url);
+            const chars = decode_query(term).split('')
             let url = `//tagindex.hitomi.la/${field}`;
             if (chars.length) {
                 url += `/${chars.join('/')}`;
             }
             url += '.json';
 
-            const suggestions = await xhr_get(url, { responseType: "json" })
-            if (return_sides) return [suggestions, field, term]
+            const [suggestions, statusRes] = await xhr_get(url, { responseType: "json", returnStatus: true })
+            if (checkValid && statusRes && suggestions.length === 1) return [suggestions, true]
             return suggestions
         }
 
-        const input_list = text.split(/\s+/)
+        const inputList = text.split(/\s+/)
 
-        if (input_list.length >= 2) {
-            const edited_list = input_list.slice(0, input_list.length - 1)
-            for (let value of edited_list) {
+        if (inputList.length >= 2) {
+            const editedList = inputList.slice(0, inputList.length - 1)
+            for (let value of editedList) {
                 let [res, field, term] = await return_json(value, true)
-                const success = tag_to_badge(res[0], field, term, divSearchInput)
-                if (success) SearchInput.value = (SearchInput.value).replace(`${value} `, "")
+                const boolSuccess = tag_to_badge(res[0], field, term, divSearchInput, actualInput)
+                if (boolSuccess) inputSearchInput.value = (inputSearchInput.value).replace(`${value} `, "")
             }
         }
 
-        const input = input_list.slice(-1)[0];
+        const input = inputList.slice(-1)[0];
         const suggestions = await return_json(input)
 
-        const re = new RegExp(input.replace(/_/g, ' '), 'gi');
+        const re = new RegExp((decode_query(input)), 'gi');
 
         suggestions.forEach(suggestion => {
             const aS = document.createElement("a")
@@ -646,9 +603,9 @@
             spanStext.className = "SuggestionText"
             spanSarea.className = "SuggestionArea"
 
-            const final_str = suggestion[0].replace(re, function(str) { return '<strong>' + str + '</strong>' });
+            const finalStr = suggestion[0].replace(re, function(str) { return '<strong>' + str + '</strong>' });
 
-            spanStext.innerHTML = final_str;
+            spanStext.innerHTML = finalStr;
             spanSarea.textContent = suggestion[2]
 
             aS.appendChild(spanStext)
@@ -662,10 +619,10 @@
                 divSuggestionC.style.display = 'none';
                 divSuggestionC.textContent = "";
 
-                const success = tag_to_badge(suggestion, field, term, divSearchInput)
-                if (success) SearchInput.value = ''
+                const success = tag_to_badge(suggestion, field, term, divSearchInput, actualInput)
+                if (success) inputSearchInput.value = ''
 
-                SearchInput.focus();
+                inputSearchInput.focus();
                 divSearchInput.scrollLeft = divSearchInput.scrollWidth;
                 divSearchInput.removeEventListener("keydown", arrow_process)
                 i = -1;
@@ -679,17 +636,17 @@
 
         let i = -1;
         function arrow_process(e) {
-            const suggest_array = Array.from(divSuggestionC.querySelectorAll('a'));
-            const max = suggest_array.length - 1;
-            if (suggest_array.length === 0) return;
+            const suggestionsArray = Array.from(divSuggestionC.querySelectorAll('a'));
+            const max = suggestionsArray.length - 1;
+            if (suggestionsArray.length === 0) return;
 
-            function applyFocusClass() {
-                suggest_array.forEach(a => a.classList.remove('SuggestionFocus'));
-                suggest_array[i].classList.add('SuggestionFocus');
+            function apply_focus_class() {
+                suggestionsArray.forEach(a => a.classList.remove('SuggestionFocus'));
+                suggestionsArray[i].classList.add('SuggestionFocus');
 
                 // 修正点2: ここで .focus() を呼ばないようにする
                 // これによりフォーカスが入力欄に残ったままになり、操作性が向上します
-                // suggest_array[i].focus(); 
+                // suggestionsArray[i].focus(); 
             };
 
             // ↑キー
@@ -697,7 +654,7 @@
                 e.preventDefault();
                 if (i <= 0) i = max;
                 else i--;
-                applyFocusClass();
+                apply_focus_class();
             }
 
             // ↓キー
@@ -705,14 +662,14 @@
                 e.preventDefault();
                 if (i >= max) i = 0;
                 else i++;
-                applyFocusClass();
+                apply_focus_class();
             }
 
             // Enterキーで現在の候補をクリック
             else if (e.key === 'Enter') {
                 e.preventDefault();
-                if (i >= 0 && i < suggest_array.length) {
-                    suggest_array[i].click();
+                if (i >= 0 && i < suggestionsArray.length) {
+                    suggestionsArray[i].click();
                 }
             }
         };
@@ -722,26 +679,26 @@
 
     async function load(text) {
         STATE.fetching = true
-        const div_CardC = document.querySelector("div.CardContainer")
+        const divCardC = document.querySelector("div.CardContainer")
 
-        if (STATE.fetch_count === 0) div_CardC.innerHTML = ""
-        const ids_list = await select_leaf(text, STATE.fetch_count)
-        const gallery_list = await fetch_gallery(ids_list);
+        if (STATE.fetchCount === 0) divCardC.innerHTML = ""
+        const idsList = await select_leaf(text, STATE.fetchCount)
+        const galleriesList = await fetch_gallery(idsList);
 
-        const ids_obj = await filter_contents(ids_list)
+        const idsObj = await filter_contents(idsList)
 
         const promises = []
         const fragment = document.createDocumentFragment();
-        gallery_list.forEach(gallery => {
-            promises.push(generate_card(gallery, ids_obj, fragment))
+        galleriesList.forEach(gallery => {
+            promises.push(generate_card(gallery, idsObj, fragment))
         });
 
         await Promise.allSettled(promises);
-        div_CardC.appendChild(fragment);
+        divCardC.appendChild(fragment);
         STATE.fetching = false
     }
 
-    function tags_handler(divSearchInput) {
+    function tags_handler(divSearchInput, actualInput) {
         divSearchInput.addEventListener('click', function(event) {
             if (event.target.closest('.bi-x-circle-fill')) {
                 event.target.closest('.TagContainer').remove();
@@ -781,7 +738,6 @@
 
                     tagToRemove.remove();
 
-                    const actualInput = document.querySelector('.ActualInput');
                     const originalValue = actualInput.value;
 
                     actualInput.value = extractedText + originalValue;
@@ -823,59 +779,70 @@
         };
     }
 
-    function replaceChars(str) {
-        const map = {
+    function decode_query(query) {
+        const replaceChars = {
             '\n': ' ',
+            '_': ' ',
+            'slash': '/',
+            'dot': '.'
+        };
+
+        for (const [key, value] of Object.entries(replaceChars)) {
+            query = query.split(key).join(value);
+        }
+        return query;
+    }
+
+    function encode_query(query) {
+        const replaceChars = {
             ' ': '_',
             '/': 'slash',
             '.': 'dot'
         };
-        return str.replace(/[\n /.]/g, ch => map[ch]);
+
+        for (const [key, value] of Object.entries(replaceChars)) {
+            query = query.split(key).join(value);
+        }
+        return query;
     }
 
     const CONFIG = {
-        fetch_idjs: false,
-        inf_scroll: true,
-        min_page: 0,
-        galleries_per_page: 25,
-        debounce_time: 300
+        fetchIdjs: false,
+        infScroll: true,
+        minPage: 0,
+        galleriesPerPage: 25,
+        debounceTime: 300
     };
 
     const STATE = {
         domain: 'ltn.gold-usergeneratedcontent.net',
         fetching: false,
-        fetch_count: 0,
-        index_obj: {}
+        fetchCount: 0,
+        indexObj: {}
     };
 
     document.documentElement.innerHTML = html;
 
-    const SearchInput = document.querySelector('div.SearchInput input');
+    const inputSearchInput = document.querySelector('div.SearchInput input');
     const divSearchInput = document.querySelector('div.SearchInput');
-
-    await load(STATE.fetch_count, SearchInput.value)
-
-    let divSuggestionC = document.querySelector("div.SuggestionContainer")
     const divSearchC = document.querySelector("div.SearchContainer")
+    const divSuggestionC = document.querySelector("div.SuggestionContainer")
+    const actualInput = document.querySelector('.ActualInput')
 
-    SearchInput.addEventListener('input', debounce(async function() {
-        if (!divSuggestionC) {
-            const SearchC = document.querySelector('div.SearchContainer');
-            divSuggestionC = document.createElement("div")
-            divSuggestionC.className = "SuggestionContainer"
-            SearchC.appendChild(divSuggestionC)
-        }
+    await load(STATE.fetchCount, inputSearchInput.value)
+
+    inputSearchInput.addEventListener('input', debounce(async function() {
         divSuggestionC.textContent = "";
-        const text = SearchInput.value
-        await get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput);
+        const text = inputSearchInput.value
+        await get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput, actualInput);
         if (divSuggestionC.children.length > 0) {
             divSuggestionC.style.display = 'block';
         } else {
             divSuggestionC.style.display = 'none';
         }
-    }, CONFIG.debounce_time));
+    }, CONFIG.debounceTime));
 
-    tags_handler(divSearchInput)
+    tags_handler(divSearchInput, actualInput)
 
     document.addEventListener('click', function(event) {
         if (!divSuggestionC) return;
@@ -884,24 +851,24 @@
         const isClickInsideSuggestions = divSuggestionC.contains(event.target);
 
         if (!isClickInsideSearch && !isClickInsideSuggestions) {
-            divSuggestionC.textContent = ""; // Clear content to "close" it
-            divSuggestionC.style.display = 'none'; // Optionally hide it fully
+            divSuggestionC.textContent = "";
+            divSuggestionC.style.display = 'none';
         }
     });
 
-    const SearchButton = document.querySelector(".SearchContainer button")
-    SearchButton.addEventListener('click', async function() {
-        STATE.fetch_count = 0
-        const text = replaceChars(divSearchInput.outerText)
-        await load(STATE.fetch_count, text)
+    const searchButton = document.querySelector(".SearchContainer button")
+    searchButton.addEventListener('click', async function() {
+        STATE.fetchCount = 0
+        const text = decode_query(divSearchInput.outerText)
+        await load(STATE.fetchCount, text)
     });
 
-    if (CONFIG.inf_scroll) {
+    if (CONFIG.infScroll) {
         const observer = new IntersectionObserver(async (entries) => {
             const entry = entries[0];
 
             if (entry.isIntersecting && !STATE.fetching) {
-                await load(STATE.fetch_count, SearchInput.value);
+                await load(STATE.fetchCount, inputSearchInput.value);
             }
         }, {
             root: null,
