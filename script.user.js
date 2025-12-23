@@ -470,25 +470,36 @@
 
         let queryString = decodeURIComponent(text).replace(/^\?/, '');
         let terms = queryString.toLowerCase().trim().split(/\s+/);
+        terms = terms.map(i => decode_query(i));
         const termsLength = terms.length
 
         for (let term of terms) {
             // term = term.replace(/_/g, ' ');
-            term = decode_query(term)
 
             let nozimiAddress, dataAddress, start, length
             if (STATE.indexObj[term]) {
-                if (termsLength !== 1) continue
+                continue
             }
 
             if (term.includes(':')) {
                 STATE.indexObj[term] = {}
 
-                let [area, tag] = term.split(/:/);
-                nozimiAddress = `//${STATE.domain}/${area}/${tag}-all.nozomi`;
-                if (termsLength !== 1) nozimiAddress = `//${STATE.domain}/n/${area}/${tag}-all.nozomi`;
-                STATE.indexObj[term]["url"] = nozimiAddress
-                STATE.indexObj[term]["data"] = await nozomi_load({ url: nozimiAddress });
+                let area, tag = 'index', language = 'all'
+                let temp = term.split(/:/);
+                if (temp[0] === 'language') area = temp[0], language = temp[1]
+                else area = temp[0], tag = temp[1]
+
+                if (area === 'language') {
+                    nozimiAddress = `//${STATE.domain}/${tag}-${language}.nozomi`;
+                    if (termsLength !== 1) nozimiAddress = `//${STATE.domain}/n/${tag}-${language}.nozomi`;
+                    STATE.indexObj[term]["url"] = nozimiAddress
+                    STATE.indexObj[term]["data"] = await nozomi_load({ url: nozimiAddress });
+                } else {
+                    nozimiAddress = `//${STATE.domain}/${area}/${tag}-${language}.nozomi`;
+                    if (termsLength !== 1) nozimiAddress = `//${STATE.domain}/n/${area}/${tag}-${language}.nozomi`;
+                    STATE.indexObj[term]["url"] = nozimiAddress
+                    STATE.indexObj[term]["data"] = await nozomi_load({ url: nozimiAddress });
+                }
             } else {
                 STATE.indexObj[term] = {}
                 const key = new Uint8Array(sha256.array(term).slice(0, 4))
@@ -511,22 +522,32 @@
             }
         }
 
-        let results = []
-        const keysObj = Object.keys(STATE.indexObj);
-
-        if (termsLength === 1) return STATE.indexObj[keysObj[0]]["data"]
-
-        let intersection = new Set(STATE.indexObj[keysObj[0]]["data"]);
-
-        for (let i = 1; i < keysObj.length; i++) {
-            const currentData = STATE.indexObj[keysObj[i]]["data"];
-            const tempResults = currentData.filter(x => intersection.has(x));
-            Array.prototype.push.apply(results, tempResults);
-
-            if (intersection.size === 0) break;
-        }
         const start = STATE.fetchCount * CONFIG.galleriesPerPage
-        idsList = results.slice(start, start + CONFIG.galleriesPerPage)
+
+        if (termsLength === 1) {
+            return STATE.indexObj[terms[0]]["data"].slice(start, start + CONFIG.galleriesPerPage)
+        }
+
+        const tempRes = [];
+        for (let i = 0; i < terms.length; i++) {
+          const arr = STATE.indexObj[terms[i]].data;
+          if (!Array.isArray(arr)) continue;
+          for (let j = 0; j < arr.length; j++) tempRes.push(arr[j]);
+        }
+
+        const seen = {};
+        const results = new Set();
+
+        for (const v of tempRes) {
+            if (seen[v]) {
+                seen[v] += 1
+                if (seen[v] >= terms.length) results.add(v);
+            } else {
+                seen[v] = 1;
+            }
+        }
+
+        idsList = Array.from(results).slice(start, start + CONFIG.galleriesPerPage)
         return idsList
     }
 
@@ -553,7 +574,6 @@
         }
 
         async function return_json(query, checkValid = false) {
-            query = decode_query(query)
 
             let field = 'global', term = query, istag = false
             if (query.includes(':')) {
@@ -562,7 +582,7 @@
                 term = sides[1];
                 istag = true
             }
-            const chars = decode_query(term).split('')
+            const chars = term.split('')
             let url = `//tagindex.hitomi.la/${field}`;
             if (chars.length) {
                 url += `/${chars.join('/')}`;
@@ -576,7 +596,7 @@
                 
                 for (let i = 0; i < suggestions.length; i++) {
                     const suggest = suggestions[i];
-                    if (suggest[0] === term && suggest[2] === field) {
+                    if (suggest[0] === decode_query(term) && suggest[2] === field) {
                         isvalid = true;
                         break;
                     }
@@ -671,6 +691,7 @@
                 e.preventDefault();
                 if (suggestionIndex >= 0 && suggestionIndex < suggestionsArray.length) {
                     suggestionsArray[suggestionIndex].click();
+                    suggestionIndex = -1
                 }
             }
         };
@@ -819,12 +840,19 @@
         return query;
     }
 
-    function search_listener(searchButton, divSearchInput) {
+    function search_listener(searchButton, divSearchInput, divSuggestionC) {
         searchButton.addEventListener('click', async function() {
             STATE.fetchCount = 0
-            const text = decode_query(divSearchInput.outerText)
-            await load(STATE.fetchCount, text) // STATE.fetching
+            const text = encode_query(divSearchInput.outerText)
+            await load(text.replace(/\n/g, " ")) // STATE.fetching
         });
+        divSearchInput.addEventListener('keydown', async function(e) {
+            if (e.key === 'Enter' && getComputedStyle(divSuggestionC).display == 'none') {
+                STATE.fetchCount = 0
+                const text = encode_query(divSearchInput.outerText)
+                await load(text.replace(/\n/g, " ")) // STATE.fetching
+            }
+        })
     }
 
     const CONFIG = {
@@ -851,7 +879,7 @@
     const actualInput = document.querySelector('.ActualInput')
     const searchButton = document.querySelector(".SearchContainer button")
 
-    await load(STATE.fetchCount, actualInput.value) // STATE.fetching
+    await load('') // STATE.fetching
 
     actualInput.addEventListener('input', debounce(async function() {
         divSuggestionC.textContent = "";
@@ -865,14 +893,15 @@
     }, CONFIG.debounceTime));
 
     suggestion_listener(divSearchInput, actualInput, divSearchC, divSuggestionC)
-    search_listener(searchButton, divSearchInput) // STATE.fetching, STATE.fetchCount
+    search_listener(searchButton, divSearchInput, divSuggestionC) // STATE.fetchCount
 
     if (CONFIG.infScroll) {
         const observer = new IntersectionObserver(async (entries) => {
             const entry = entries[0];
 
             if (entry.isIntersecting && !STATE.fetching) {
-                await load(STATE.fetchCount, actualInput.value); // STATE.fetching
+                const text = encode_query(divSearchInput.outerText)
+                await load(text.replace(/\n/g, " ")) // STATE.fetching
             }
         }, {
             root: null,

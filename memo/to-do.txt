@@ -1,1 +1,3 @@
-xhr_getとfetch_indexをまとめる
+decode_queryを直す
+enterキーでの検索条件を、suggestionFocusがあるかどうかで決める
+バッジがない場合でも検索できるようにする
