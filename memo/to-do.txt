@@ -1,3 +1,12 @@
-decode_queryを直す
-enterキーでの検索条件を、suggestionFocusがあるかどうかで決める
-バッジがない場合でも検索できるようにする
+ヒット総数表示
+defaultquery
+indexObjデータの取得失敗時のハンドリング
+手動ページ変更
+areaからの検索
+クエリとタグを混在してのサジェスト
+CardTitleにマージンをついか
+Cardの内の要素の高さを揃える
+スマホ用css
+カスタムviewer
+旧型のlazyimageのurl変換
+検索ワードのand, orを指定可能に
