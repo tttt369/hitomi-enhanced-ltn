@@ -1,4 +1,3 @@
-ヒット総数表示
 defaultquery
 indexObjデータの取得失敗時のハンドリング
 手動ページ変更
