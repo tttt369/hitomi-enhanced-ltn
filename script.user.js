@@ -264,6 +264,7 @@
                 if (tags.length === 0) {
                     const aTag = document.createElement('a');
                     aTag.className = 'BadgeBlue';
+                    aTag.textContent = 'N/A';
                     container.appendChild(aTag);
                 } else {
                     Array.from(tags).forEach(tag => {
@@ -272,8 +273,7 @@
 
                         clone.className = 'BadgeBlue';
                         container.appendChild(clone);
-                    }
-                    );
+                    });
                 };
             };
 
@@ -331,8 +331,7 @@
             aPage.textContent = idsObj[id] ? `${idsObj[id]}p` : "N/A"
             generate_tags(tags, divTagC)
             resolve()
-        }
-        )
+        })
     };
 
     async function select_leaf(text) {
@@ -454,19 +453,6 @@
             return await b_tree(NODE, key, indexUrl)
         }
 
-        async function nozomi_load(options = {}) {
-            const {
-                url = `//${STATE.domain}/index-all.nozomi`,
-                step = CONFIG.galleriesPerPage * 4,
-                fetchAll = true,
-            } = options;
-            const bytesArray = await xhr_get(url, { step: step, fetchAll: fetchAll });
-            const view = new DataView(bytesArray);
-            const totalBytes = view.byteLength;
-            const idsList = get_ids(totalBytes, view)
-            return idsList
-        }
-
         async function index_load(options = {}) {
             const {
                 url = undefined,
@@ -496,141 +482,97 @@
             return results
         }
 
-        let idsList, isRandom = false
-
-        if (STATE.orderBy === "random") {
-            isRandom = true
-        } else {
-            if (text) text = `${text} ${STATE.orderBy}`
-            if (!text) text = `${STATE.orderBy}`
-        }
-
-        if (!text) {
-            if (isRandom) {
-                idsList = await nozomi_load({ url: `//${STATE.domain}/n/index-all.nozomi` })
-                idsList = random_access(idsList) // STATE.randomUsed
-            }
-            else {
-                idsList = await nozomi_load({ fetchAll: false }) 
-            }
-            return idsList
-        }
-
-        let queryString = decodeURIComponent(text).replace(/^\?/, '');
-        let terms = queryString.toLowerCase().trim().split(/\s+/);
-
-        const newTerms = []
-        const posTerms = []
-        const negTerms = []
-        terms.forEach(term => {
-            let isNegative = false
-
-            term = ubar2space(term) //index url need to be exclude ubars
-            if (/^-/.test(term)) {
-                term = term.replace(/^-/, "")
-                negTerms.push(term)
-                isNegative = true
-            } else {
-                posTerms.push(term)
-            }
-            STATE.indexObj[term] = {}
-            STATE.indexObj[term]["isNegative"] = isNegative
-
-            newTerms.push(term)
-        })
-        const termsLength = newTerms.length
-
-        for (let term of newTerms) {
-            let nozimiAddress, dataAddress, start, length
-            if (STATE.indexObj[term]["data"]) {
-                continue
-            }
-
+        async function fetch_term_data(term) {
+            let ids = [];
             if (term.includes(':')) {
-                let area, tag = 'index', language = 'all'
-                let temp = term.split(/:/);
-                if (temp[0] === 'language') area = temp[0], language = temp[1]
-                else if (temp[0] === 'female' || temp[0] === 'male') area = 'tag', tag = term
-                else area = temp[0], tag = temp[1]
-
-                if (area === 'language') {
-                    nozimiAddress = `//${STATE.domain}/${tag}-${language}.nozomi`;
-                    if (termsLength !== 1 || isRandom) nozimiAddress = `//${STATE.domain}/n/${tag}-${language}.nozomi`;
-                    STATE.indexObj[term]["url"] = nozimiAddress
-                    STATE.indexObj[term]["data"] = await nozomi_load({ url: nozimiAddress });
-                } else {
-                    nozimiAddress = `//${STATE.domain}/${area}/${tag}-${language}.nozomi`;
-                    if (termsLength !== 1 || isRandom) nozimiAddress = `//${STATE.domain}/n/${area}/${tag}-${language}.nozomi`;
-                    STATE.indexObj[term]["url"] = nozimiAddress
-                    STATE.indexObj[term]["data"] = await nozomi_load({ url: nozimiAddress });
-                }
+                let language = 'all'
+                let [area, tag] = term.split(':');
+                
+                if (area === 'language') { language = tag; tag = 'index'; }
+                else if (area === 'female' || area === 'male') { tag = term; area = 'tag'; }
+                
+                const url = get_nozomi_url(area, tag, language);
+                ids = await nozomi_load({ url }); // STATE.indexObj
             } else {
-                const key = new Uint8Array(sha256.array(term).slice(0, 4))
-                const versionUrl = `//${STATE.domain}/galleriesindex/version?_=${(new Date).getTime()}.index`
-                const galleriesIndexVersion = await xhr_get(versionUrl, { responseType: "text" })
-
-                const indexUrl = `//${STATE.domain}/galleriesindex/galleries.${galleriesIndexVersion}.index`
-                const arrayBuf = await xhr_get(indexUrl, { step: 464 })
-                const eightArray = new Uint8Array(arrayBuf);
-                const NODE = decode_node(eightArray)
-                const bytesList = await b_tree(NODE, key, indexUrl)
-
-                start = bytesList[0]
-                length = bytesList[1]
-                dataAddress = `//${STATE.domain}/galleriesindex/galleries.${galleriesIndexVersion}.data`
-                STATE.indexObj[term]["data_url"] = dataAddress
-                STATE.indexObj[term]["start"] = start
-                STATE.indexObj[term]["length"] = length
-                STATE.indexObj[term]["data"] = await index_load({ url: dataAddress, start: start, step: length })
+                ids = await get_galleryids_for_keyword(term); // STATE.indexObj
             }
+            return ids;
         }
 
-        const start = STATE.fetchCount * CONFIG.galleriesPerPage
+        function get_nozomi_url(area, tag, language) {
+            const orderby = STATE.orderBy || 'date';
+            const prefix = 'n'; 
+            
+            if (area === 'language') {
+                return `//${STATE.domain}/${prefix}/${tag}-${language}.nozomi`;
+            }
+            if (orderby === 'random') {
+                return `//${STATE.domain}/${prefix}/${area}/${tag}-${language}.nozomi`;
+            }
+            if (orderby.includes(':')) { // popular:year など
+                const [sort, key] = orderby.split(':');
+                return `//${STATE.domain}/${prefix}/${area}/${sort}/${key}/${tag}-${language}.nozomi`;
+            }
+            return `//${STATE.domain}/${prefix}/${area}/${tag}-${language}.nozomi`; 
+        }
 
-        const seen = {};
-        let posTempRes = new Set();
-        for (let i = 0; i < posTerms.length; i++) {
-            const termObj = STATE.indexObj[posTerms[i]];
-            if (termObj["isNegative"]) continue
+        async function get_galleryids_for_keyword(term) {
+            const key = new Uint8Array(sha256.array(term).slice(0, 4));
+            const versionUrl = `//${STATE.domain}/galleriesindex/version?_=${Date.now()}.index`;
 
-            const data = termObj["data"]
-            if (!Array.isArray(data)) continue;
-            for (const id of data) {
-                if (posTerms.length >= 2) {
-                    if (seen[id]) {
-                        seen[id] += 1
-                        if (seen[id] >= posTerms.length) posTempRes.add(id);
-                    } else {
-                        seen[id] = 1;
-                    }
-                } else if (posTerms.length === 1) {
-                    posTempRes.add(id);
+            if (!STATE.indexObj[versionUrl]) {
+                STATE.indexObj[versionUrl] = await xhr_get(versionUrl, { responseType: "text" });
+            }
+            const indexUrl = `//${STATE.domain}/galleriesindex/galleries.${STATE.indexObj[versionUrl]}.index`;
+            const dataUrl = `//${STATE.domain}/galleriesindex/galleries.${STATE.indexObj[versionUrl]}.data`;
+            
+            const arrayBuf = await xhr_get(indexUrl, { step: 464 });
+            const node = decode_node(new Uint8Array(arrayBuf));
+            const bytesList = await b_tree(node, key, indexUrl);
+            
+            const data = await index_load({ url: dataUrl, start: bytesList[0], step: bytesList[1] });
+            return data
+        }
+
+        const terms = decodeURIComponent(text).replace(/^\?/, '').split(/\s+/);
+        const posTerms = [], negTerms = []
+
+        terms.forEach(term => {
+            term = ubar2space(term);
+            if (term.startsWith('-')) negTerms.push(term.slice(1));
+            else posTerms.push(term);
+        });
+
+        let results = null
+        if (posTerms.length === 0) {
+            results = await nozomi_load({ url: `//${STATE.domain}/n/index-all.nozomi` }); // STATE.indexObj
+        } else {
+            for (let i = 0; i < posTerms.length; i++) {
+                const ids = await fetch_term_data(posTerms[i]);
+                if (i === 0) {
+                    results = ids;
+                } else {
+                    const idSet = new Set(ids);
+                    results = results.filter(id => idSet.has(id));
                 }
             }
         }
-        if (!posTempRes.size) {
-            posTempRes = await nozomi_load({ url: `//${STATE.domain}/n/index-all.nozomi` })
+
+        for (const term of negTerms) {
+            const ids = await fetch_term_data(term);
+            const idSet = new Set(ids);
+            results = results.filter(id => !idSet.has(id));
         }
 
-        const negTempRes = new Set();
-        for (let i = 0; i < negTerms.length; i++) {
-            const termObj = STATE.indexObj[negTerms[i]];
-            if (!termObj["isNegative"]) continue
-
-            const data = termObj["data"]
-            if (!Array.isArray(data)) continue;
-            for (const id of data) negTempRes.add(id);
+        STATE.resultsCount = results.length;
+        const isRandom = STATE.orderBy === "random";
+        
+        if (isRandom) {
+            return random_access(results);
         }
 
-        const results = new Set();
-        for (const id of posTempRes) {
-            if (negTempRes.has(id)) continue
-            results.add(id)
-        }
-
-        STATE.resultsCount = results.size
-        if (isRandom) return random_access(results)
-        return Array.from(results).slice(start, start + CONFIG.galleriesPerPage)
+        const start = STATE.fetchCount * CONFIG.galleriesPerPage;
+        return results.slice(start, start + CONFIG.galleriesPerPage);
     }
 
     function tag_to_badge(field, term, xdiv, actualInput, isNegative) {
@@ -795,11 +737,14 @@
         divSearchInput.addEventListener('keydown', arrow_process)
     }
 
-    async function load(text, aResCount, divCardC) {
+    async function load(aResCount, divCardC) {
         STATE.fetching = true
 
         if (STATE.fetchCount === 0) divCardC.innerHTML = ""
-        const idsList = await select_leaf(CONFIG.defaultQuery + text, STATE.fetchCount) // STATE.indexObj
+
+        let idsList
+        if (!STATE.term.length) idsList = await nozomi_load({ fetchAll: false });
+        else idsList = await select_leaf(CONFIG.defaultQuery + STATE.term)
 
         const galleriesList = await fetch_gallery(idsList); // STATE.fetchCount
 
@@ -924,6 +869,21 @@
         return query;
     }
 
+    function replace_smart_quotes(query) {
+        const replaceChars = {
+            '“': '"',
+            '”': '"',
+            '‘': "'",
+            '’': "'",
+            '–': '-',
+            '—': '-',
+        };
+        for (const [key, value] of Object.entries(replaceChars)) {
+            query = query.split(key).join(value);
+        }
+        return query;
+    }
+
     function encode_query(query) {
         const replaceChars = {
             ' ': '_',
@@ -940,12 +900,8 @@
     function search_listener(searchButton, divSearchInput, divSuggestionC, actualInput) {
         let isFocust;
         searchButton.addEventListener('click', async function() {
-            STATE.fetchCount = 0
-            STATE.randomUsed = new Set()
-            let text = (wrap2space(divSearchInput.outerText)) // eg, series:blue_archive\ntype:doujinshi
-            if (actualInput.value && text) text = `${text} ${actualInput.value}`
-            else if (actualInput.value) text = actualInput.value
-            await load(text, aResCount, divCardC) // STATE.fetching
+            search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
+            await load(aResCount, divCardC) // STATE.fetching
         });
         divSearchInput.addEventListener('keydown', async function(e) {
             if (e.key !== 'Enter') return
@@ -957,12 +913,8 @@
             }
 
             if (!isFocust) {
-                STATE.fetchCount = 0
-                STATE.randomUsed = new Set()
-                let text = (wrap2space(divSearchInput.outerText)) // eg, series:blue_archive\ntype:doujinshi
-                if (actualInput.value && text) text = `${text} ${actualInput.value}`
-                else if (actualInput.value) text = actualInput.value
-                await load(text, aResCount, divCardC) // STATE.fetching
+                search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
+                await load(aResCount, divCardC) // STATE.fetching
             }
             isFocust = false;
         })
@@ -1110,6 +1062,35 @@
         });
     }
 
+    function search_post_process(divSearchInput, actualInput) {
+        STATE.fetchCount = 0
+        STATE.randomUsed = new Set()
+
+        let text;
+        text = replace_smart_quotes(divSearchInput.outerText)
+        text = text.toLowerCase().trim()
+        text = wrap2space(text) // eg, series:blue_archive\ntype:doujinshi
+        text = (actualInput.value && text) ? `${text} ${actualInput.value}` : text
+        STATE.term = text
+    }
+
+    async function nozomi_load(options = {}) {
+        const {
+            url = `//${STATE.domain}/index-all.nozomi`,
+            step = CONFIG.galleriesPerPage * 4,
+            fetchAll = true,
+        } = options;
+        if (STATE.indexObj[url] && fetchAll) {
+            return STATE.indexObj[url]
+        } else {
+            const bytesArray = await xhr_get(url, { step: step, fetchAll: fetchAll });
+            const view = new DataView(bytesArray);
+            const totalBytes = view.byteLength;
+            STATE.indexObj[url] = get_ids(totalBytes, view)
+            return STATE.indexObj[url]
+        }
+    }
+
     const CONFIG = {
         fetchIdjs: false,
         infScroll: true,
@@ -1126,7 +1107,8 @@
         indexObj: {},
         orderBy: "",
         randomUsed: new Set(),
-        resultsCount: 0
+        resultsCount: 0,
+        term: ""
     };
 
     document.documentElement.innerHTML = html;
@@ -1147,7 +1129,7 @@
 
     const optionOrderByDropdown = document.querySelectorAll("#orderbydropdown option")
 
-    await load('', aResCount, divCardC) // STATE.fetching
+    await load(aResCount, divCardC) // STATE.fetching
 
     actualInput.addEventListener('input', debounce(async function() {
         divSuggestionC.textContent = "";
@@ -1163,7 +1145,7 @@
 
     suggestion_listener(divSearchInput, actualInput, divSearchC, divSuggestionC)
     order_listener(optionOrderByDropdown) // STATE.orderBy
-    search_listener(searchButton, divSearchInput, divSuggestionC, actualInput) // STATE.fetchCount, STATE.randomUsed
+    search_listener(searchButton, divSearchInput, divSuggestionC, actualInput)
     picker_listener(svgEye, buttonAdd, buttonEx, divCardC, divDefaultInput, DefaultActualInput)
 
     if (CONFIG.infScroll) {
@@ -1171,10 +1153,7 @@
             const entry = entries[0];
 
             if (entry.isIntersecting && !STATE.fetching) {
-                let text = (wrap2space(divSearchInput.outerText)) // eg, series:blue_archive\ntype:doujinshi
-                if (actualInput.value && text) text = `${text} ${actualInput.value}`
-                else if (actualInput.value) text = actualInput.value
-                await load(text, aResCount, divCardC) // STATE.fetching
+                await load(aResCount, divCardC) // STATE.fetching
             }
         }, {
             root: null,
