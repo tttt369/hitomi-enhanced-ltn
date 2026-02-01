@@ -4,10 +4,10 @@
 // @match        https://ltn.gold-usergeneratedcontent.net/page.css
 // @grant        none
 // @require      https://raw.github.com/emn178/js-sha256/master/build/sha256.min.js
-// @version      1.2
+// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
+// @version      0.0
 // @author       -
 // ==/UserScript==
-// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
 
 (async function() {
     'use strict';
@@ -20,58 +20,76 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
         <style>
-            body {margin: 0; background-color: #212529;}
-            input {color: white}
-            .ActualInput {color: white; background-color: transparent; border: none; font-weight: 700; overflow: visable;}
-            input:focus { background-color: transparent; border: none; outline: none;}
-            svg {color: white;}
-            tr th {width: 100%;}
-            table tr td a {color: #fff9; text-decoration: none;}
+            body {margin: 0; background-color: hsl(0, 0%, 13%); font-family: "Noto Sans JP", sans-serif;}
+            table tr td a {color: #fff9; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all;}
             strong {color: cyan;}
-            .BtnGreenOut {color: #198754; background-color: transparent; border: 1px solid #198754; border-radius: 0.375rem;}
-            .BtnGreenOut:hover {color: white; background-color: #198754;}
-            .BtnGreen {color: white; background-color: #198754; border: 1px solid #198754; border-radius: 0.375rem;}
-            .BtnRed {color: white; background-color: #a13643; border: 1px solid #a13643; border-radius: 0.375rem;}
-            .BadgeGrey {background-color: #6c757d; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
-            .BadgeBlue {display: flex; align-items: center; background-color: #0d6efd; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; white-space: nowrap;}
-            .BadgeGreen {display: flex; align-items: center; background-color: #28a745; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; white-space: nowrap;}
-            .BadgeRed {display: flex; align-items: center; background-color: #dc3545; border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; white-space: nowrap;}
-            .Container {display: flex; flex-direction: column; justify-content: center;}
-            .NavbarContainer {display: flex; flex-direction: row; justify-content: space-between; width: 100%; height: 100px; background-color: #2b3035;}
+            span svg {color: lightgrey; margin-right: 8px; cursor: pointer;}
+
+            .Card img, tr th {width: 100%; border-radius: 0.375rem;}
+            input, svg {color: white;}
+            .BtnGreen, .BtnGreenOut, .BtnRed {border-radius: 0.375rem;}
+            .BtnGreen, .BtnGreenOut:hover, .BtnRed {color: white;}
+            .BadgeBlue, .BadgeGreen, .BadgeGrey, .BadgeRed {border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
+            .BadgeBlue, .BadgeGreen, .BadgeRed {display: flex; align-items: center; white-space: nowrap;}
+            .InputContainer, .NavbarContainer {display: flex; justify-content: space-between}
+            .DefaultQueryContainer, .PickerContainer, .SearchContainer {display: flex; justify-content: space-between; width: 100%;}
+            .Suggestion, .SuggestionFocus {display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid #696969}
+            .DefaultInput, .SearchInput {width: 240px; overflow: auto; display: flex; background-color: hsl(0, 0%, 16%); border: 1px solid hsl(0, 0%, 25%); border-radius: 0.375rem; color: white;}
+
             .NavbarContainer a {margin: auto auto auto 0;}
-            .InputContainer {display: flex; flex-direction: column; justify-content: space-between;}
-            .InputContainer button {margin-right: 5px;}
-            .SearchContainer {display: flex; flex: 1; flex-direction: row; justify-content: space-between; margin-top: 7px; width: 100%;}
-            .DefaultQueryContainer {display: flex; flex: 1; flex-direction: row; justify-content: space-between; margin: 3px 0 7px 0; width: 100%;}
-            .PickerContainer {display: flex; justify-content: space-between; align-items: center; height: 35px; width: 100%; background-color: #343a40; position: sticky; top: 0;}
+            .InputContainer button {margin-right: 5px; white-space: nowrap; overflow: hidden;}
+            .CardTableContainer table {color: #fff9;}
+            .CardTagsContainer a {margin-right: 5%; text-decoration: none; color: white;}
+            .Card img {height: 220px; object-fit: cover;}
+            .EyeContainer a {white-space: nowrap; display: none;}
+
+            input:focus {background-color: transparent; border: none; outline: none;}
+            .Suggestion:hover { background-color: #2c2f33; display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
+            .BtnGreenOut:hover {background-color: #198754;}
+            .CardTagsContainer::-webkit-scrollbar-thumb:hover {background: transparent;}
+            .CardTagsContainer::-webkit-scrollbar-thumb {background: transparent;}
+            .CardTagsContainer::-webkit-scrollbar-track {background: transparent;}
+
+            .BtnGreenOut {color: #198754; background-color: transparent; border: 1px solid #198754;}
+            .BtnGreen {background-color: #198754; border: 1px solid #198754;}
+            .BtnRed {background-color: #a13643; border: 1px solid #a13643;}
+
+            .BadgeGrey {background-color: #6c757d;}
+            .BadgeBlue {background-color: #0d6efd;}
+            .BadgeGreen {background-color: #28a745;}
+            .BadgeRed {background-color: #dc3545;}
+
+            .Container {display: flex; flex-direction: column; justify-content: center;}
+            .NavbarContainer {flex-direction: row; width: 100%; height: 100px; background-color: hsl(0, 0%, 19%);}
+            .InputContainer {flex-direction: column;}
+            .SearchContainer {flex: 1; flex-direction: row; margin-top: 7px;}
+            .DefaultQueryContainer {flex: 1; flex-direction: row; margin: 3px 0 7px 0;}
+            .PickerContainer {align-items: center; height: 35px; background-color: hsl(0, 0%, 16%); position: sticky; top: 0;}
             .BtnContainer {display: flex; height: 100%;}
             .BtnContainer button{width: 40px;}
-            .eye {margin-left: 1%;}
-            .CardContainer {display: flex; flex-wrap: wrap; justify-content: space-around; color: white; background-color: #1e1f20; margin: 2% 3% auto 3%; border-radius: 0.375rem}
+            .CardContainer {display: flex; flex-wrap: wrap; justify-content: space-around; color: white; background-color: hsl(0, 0%, 10%); border-radius: 0.375rem; gap: 20px; margin: 10px;}
             .CardTableContainer {display: flex; flex-direction: column; align-items: center; overflow-x: auto;}
-            .CardTableContainer table {color: #fff9;}
-            .CardTitle {font-weight: bold; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; word-break: break-all; margin: 2% auto 7% auto;}
-            .CardTagsContainer {scrollbar-width: none; display: flex; overflow-x: auto; white-space: nowrap; background-color: #00000038; margin: 3%; width: 100%;}
-            .CardTagsContainer a {margin-right: 5%; text-decoration: none; color: white;}
-            .page {margin-left: 5%; width: fit-content;}
-            .Card {display: flex; flex-direction: column; flex: 1 1 194px; max-width: 220px; height: 475px; margin: 1%; background-color: #212529; overflow: hidden; justify-content: space-between; border-radius:0.375rem; border:1px solid #343a40}
-            .Card img {height: 220px; object-fit: cover; width: 100%;}
+            .CardTagsContainer {scrollbar-width: thin; display: flex; overflow-x: auto; white-space: nowrap; background-color: #00000038; width: 100%; scrollbar-color: rgba(0,0,0,0.4) transparent;}
             .PageContainer {height: 100px; background-color: white;}
             .SuggestionContainer {display: none; margin: 0; position: absolute; z-index: 1; background-color: #212529; color: white; border: 1px solid dimgrey; border-radius: 0.375rem;}
-            .Suggestion { display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
-            .Suggestion:hover { background-color: #2c2f33; display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
-            .SuggestionFocus { background-color: #2c2f33; display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
+            .EyeContainer {display: flex; background-color: transparent; border-radius: 0.375rem; padding: 5px; gap: 5px;}
+            .InfoContainer {display: flex; justify-content: space-between; flex-direction: row-reverse; padding: 20px; align-items: center;}
+            .TagContainer {display: flex; align-items: center;}
+            .ContentContainer {background-color: hsl(0, 0%, 10%); margin: 1rem 3% auto 3%; border-radius: 0.375rem; overflow: hidden;}
+
+            .eye {margin-left: 1%;}
+            .CardTitle {font-weight: bold; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all;}
+            .page {width: fit-content;}
+            .Card {display: flex; flex-direction: column; flex: 1 1 194px; max-width: 220px; height: 475px; /*! margin: 1%; */ background-color: hsl(0, 0%, 14%); overflow: hidden; justify-content: space-between; border-radius:0.375rem; border:1px solid hsl(0, 0%, 19%); padding: 5px; gap: 10px;}
+            .SuggestionFocus {background-color: #2c2f33;}
             .SuggestionText {flex: 1; overflow: hidden; text-overflow: ellipsis; }
             .SuggestionArea {color: darkgrey}
-            #scrollSentinel {height: 1px}
 
-            .SearchInput {width: 240px; overflow: auto; display: flex; background-color: #212529;border: 1px solid #495057;border-radius: 0.375rem; color: white;}
-            .DefaultInput {width: 240px; overflow: auto; display: flex; background-color: #212529;border: 1px solid #495057;border-radius: 0.375rem; color: white;}
-            .TagContainer {display: flex; align-items: center;}
-            span svg {color: lightgrey; margin-right: 8px; cursor: pointer;}
+            .ActualInput {color: white; background-color: transparent; border: none; font-weight: 700; overflow: visible;}
             .BetweenInput {background-color: transparent; border: none; width: 1px;}
-            .InfoContainer {display: flex; justify-content: space-between; flex-direction: row-reverse; margin: 5% 3% 0 3%;}
+
             .ResultsCount {color: white;}
+            #scrollSentinel {height: 1px}
         </style>
     </head>
     <body>
@@ -93,13 +111,17 @@
                             <input class="ActualInput" type="text">
                         </div>
                         <button class="BtnGreenOut" type="button">Save</button>
+                        <div class="SuggestionContainer"></div>
                     </div>
                 </div>
             </div>
             <div class="PickerContainer">
-                <svg class="eye" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eyedropper" viewBox="0 0 16 16">
-                <path d="M13.354.646a1.207 1.207 0 0 0-1.708 0L8.5 3.793l-.646-.647a.5.5 0 1 0-.708.708L8.293 5l-7.147 7.146A.5.5 0 0 0 1 12.5v1.793l-.854.853a.5.5 0 1 0 .708.707L1.707 15H3.5a.5.5 0 0 0 .354-.146L11 7.707l1.146 1.147a.5.5 0 0 0 .708-.708l-.647-.646 3.147-3.146a1.207 1.207 0 0 0 0-1.708zM2 12.707l7-7L10.293 7l-7 7H2z"/>
-                </svg>
+                <div class="EyeContainer">
+                    <a>select tag or type</a>
+                    <svg class="eye" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eyedropper" viewBox="0 0 16 16">
+                        <path d="M13.354.646a1.207 1.207 0 0 0-1.708 0L8.5 3.793l-.646-.647a.5.5 0 1 0-.708.708L8.293 5l-7.147 7.146A.5.5 0 0 0 1 12.5v1.793l-.854.853a.5.5 0 1 0 .708.707L1.707 15H3.5a.5.5 0 0 0 .354-.146L11 7.707l1.146 1.147a.5.5 0 0 0 .708-.708l-.647-.646 3.147-3.146a1.207 1.207 0 0 0 0-1.708zM2 12.707l7-7L10.293 7l-7 7H2z"/>
+                    </svg>
+                </div>
                 <div class="BtnContainer">
                     <button class="BtnGreen BtnAdd">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle-fill" viewBox="0 0 16 16">
@@ -113,20 +135,22 @@
                     </button>
                 </div>
             </div>
-            <div class="InfoContainer">
-                <select id="orderbydropdown">
-                    <option value="">Order by:</option>
-                    <option value="date_added">Date Added</option>
-                    <option value="published">Date Published</option>
-                    <option value="today">Popular: Today</option>
-                    <option value="week">Popular: Week</option>
-                    <option value="month">Popular: Month</option>
-                    <option value="year">Popular: Year</option>
-                    <option value="random">Random</option>
-                </select>
-                <a class="ResultsCount"></a>
+            <div class="ContentContainer">
+                <div class="InfoContainer">
+                    <select id="orderbydropdown">
+                        <option value="">Order by:</option>
+                        <option value="date_added">Date Added</option>
+                        <option value="published">Date Published</option>
+                        <option value="today">Popular: Today</option>
+                        <option value="week">Popular: Week</option>
+                        <option value="month">Popular: Month</option>
+                        <option value="year">Popular: Year</option>
+                        <option value="random">Random</option>
+                    </select>
+                    <a class="ResultsCount"></a>
+                </div>
+                <div class="CardContainer"></div>
             </div>
-            <div class="CardContainer"></div>
             <div id="scrollSentinel"></div>
         </div>
     </body>
@@ -317,8 +341,8 @@
             aPic.appendChild(pic)
             divCard.appendChild(aPic)
             divCardC.appendChild(divCard)
+            divCard.appendChild(aCardTitle)
             divCard.appendChild(divTableC)
-            divTableC.appendChild(aCardTitle)
             divTableC.appendChild(table)
             divCard.appendChild(aPage)
             divCard.appendChild(divTagC)
@@ -575,7 +599,7 @@
         return results.slice(start, start + CONFIG.galleriesPerPage);
     }
 
-    function tag_to_badge(field, term, xdiv, actualInput, isNegative) {
+    function tag_to_badge(field, term, divContainer, actualInput, isNegative) {
         const input = `<input class="BetweenInput" type="text" maxlength="0">`
         const svg = `
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle-fill" viewBox="0 0 16 16">
@@ -594,7 +618,7 @@
 
         divTagC.appendChild(span)
 
-        xdiv.insertBefore(divTagC, actualInput);
+        divContainer.insertBefore(divTagC, actualInput);
     }
 
     async function get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput, actualInput) {
@@ -737,14 +761,46 @@
         divSearchInput.addEventListener('keydown', arrow_process)
     }
 
-    async function load(aResCount, divCardC) {
+    function clean_text(text) {
+
+        tagQuery = replace_smart_quotes(divSearchInput.outerText)
+        tagQuery = tagQuery.toLowerCase().trim()
+        tagQuery = wrap2space(tagQuery) // eg, series:blue_archive\ntype:doujinshi
+
+        inputQuery = replace_smart_quotes(actualInput.value)
+        inputQuery = inputQuery.toLowerCase().trim()
+        return text
+    }
+
+    function search_post_process(divSearchInput, actualInput) {
+        let defQuery, tagQuery, inputQuery
+        defQuery = replace_smart_quotes(CONFIG.defaultQuery)
+        defQuery = defQuery.toLowerCase().trim()
+
+        const set = new set()
+        const temp = [defQuery, tagQuery, inputQuery]
+        temp.forEach(rawQuery => {
+            const querySplited = rawQuery.split(/\s+/)
+            querySplited.forEach(query => set.add(query))
+        })
+        const res = Array.from(set).join(' ')
+
+        return res
+    }
+
+    async function load(aResCount, divCardC, divSearchInput, actualInput) {
         STATE.fetching = true
 
         if (STATE.fetchCount === 0) divCardC.innerHTML = ""
 
         let idsList
-        if (!STATE.term.length) idsList = await nozomi_load({ fetchAll: false });
-        else idsList = await select_leaf(CONFIG.defaultQuery + STATE.term)
+        const text = search_post_process(divSearchInput, actualInput) 
+        if (!text.length) {
+            idsList = await nozomi_load({ fetchAll: false });
+            STATE.resultsCount = 0
+            aResCount.text = ''
+        }
+        else idsList = await select_leaf(text)
 
         const galleriesList = await fetch_gallery(idsList); // STATE.fetchCount
 
@@ -762,10 +818,14 @@
         STATE.fetching = false
     }
 
-    function suggestion_listener(divSearchInput, actualInput, divSearchC, divSuggestionC) {
+    function tag_listener(divSearchInput, actualInput, divSearchC, divSuggestionC, saveButton, isDefaultQuery = false) {
         divSearchInput.addEventListener('click', function(event) {
             if (event.target.closest('.bi-x-circle-fill')) {
                 event.target.closest('.TagContainer').remove();
+                if (isDefaultQuery) {
+                    const text = search_post_process(divSearchInput, actualInput)
+                    save_to_localstorage(saveButton, text) // CONFIG.defaultQuery
+                }
             }
         });
 
@@ -793,7 +853,7 @@
             if (e.key === 'Backspace' && isSelectionEmpty && currentInput.selectionStart === 0) {
                 let tagToRemove = null;
 
-                if (currentInput.classList.contains('ActualInput')) {
+                if (currentInput.classList.contains('.ActualInput')) {
                     const tags = divSearchInput.querySelectorAll('.TagContainer');
                     if (tags.length > 0) {
                         tagToRemove = tags[tags.length - 1];
@@ -901,7 +961,7 @@
         let isFocust;
         searchButton.addEventListener('click', async function() {
             search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
-            await load(aResCount, divCardC) // STATE.fetching
+            await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
         });
         divSearchInput.addEventListener('keydown', async function(e) {
             if (e.key !== 'Enter') return
@@ -914,7 +974,7 @@
 
             if (!isFocust) {
                 search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
-                await load(aResCount, divCardC) // STATE.fetching
+                await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
             }
             isFocust = false;
         })
@@ -931,7 +991,19 @@
         })
     }
 
-    function picker_listener(eye, add, ex, divCardC, divDefaultInput, DefaultActualInput) {
+    function save_to_localstorage(saveButton, text = "") {
+        function temp_ui_update(saveButton) {
+            saveButton.innerText = "saved!";
+            setTimeout(() => {
+                saveButton.innerText = "Save";
+            }, 1000);
+        }
+        CONFIG.defaultQuery = `${text} `
+        localStorage.setItem(STORAGE.defaultQueryValue, `${text} `)
+        temp_ui_update(saveButton)
+    }
+
+    function picker_listener(eye, add, ex, divDefaultInput, defaultActualInput, divSearchInput, actualInput, aResCount, divCardC, eyeText, eyeContainer, saveButton) {
         function extract_tag(href) {
             const match = href.match(/\/tag\/(.*)-all.html/) || href.match(/.*%20(.*)/);
             return encode_query(decodeURIComponent(match[1]));
@@ -964,10 +1036,28 @@
         let selectedTag = [];
         let selectedType = [];
 
-        eye.addEventListener('click', () => {
+        defaultActualInput.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter') return
+            saveButton.click()
+        })
+
+        saveButton.addEventListener('click', () => {
+            const text = search_post_process(divDefaultInput, defaultActualInput, true)
+            save_to_localstorage(saveButton, text) // CONFIG.defaultQuery
+        })
+
+        eyeContainer.addEventListener('click', () => {
             isPickerActive = !isPickerActive;
-            if (isPickerActive) eye.setAttribute('fill', 'yellow')  
-            else eye.setAttribute('fill', 'currentColor')
+            if (isPickerActive) {
+                eyeContainer.style.backgroundColor = 'yellow';
+                eyeText.style.display = 'block';
+                eyeText.style.color = 'black';
+                eye.style.fill = 'black';
+            } else {
+                eyeContainer.style.backgroundColor = 'transparent';
+                eyeText.style.display = 'none';
+                eye.style.fill = 'white';
+            }
 
             add.disabled = !isPickerActive;
             ex.disabled = !isPickerActive;
@@ -979,11 +1069,20 @@
             //     selectedType = null;
             // }
         })
-        document.addEventListener('click', (e) => {
-            if (!isPickerActive) return;
+        document.addEventListener('click', async (e) => {
             const tag = e.target.closest('.BadgeBlue');
             if (tag) {
                 e.preventDefault();
+                if (!isPickerActive) {
+                    const tagText = extract_tag(tag.href);
+                    const tagList = tagText.split(/:/)
+                    tag_to_badge(tagList[0], tagList[1], divSearchInput, actualInput, false)
+                    if (!CONFIG.incrementTag) {
+                        search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
+                        await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+                    }
+                    return;
+                }
                 const color = tag.style.border
                 if (color === "") {
                     tag.style.border = "solid yellow"
@@ -992,11 +1091,20 @@
                 else tag.style.border = ""
             }
         });
-        document.addEventListener('click', (e) => {
-            if (!isPickerActive) return;
+        document.addEventListener('click', async (e) => {
             const type = e.target.closest('table tr td a');
             if (type) {
                 e.preventDefault();
+                if (!isPickerActive) {
+                    const typeText = extract_table(type);
+                    const typeList = typeText.split(/:/)
+                    tag_to_badge(typeList[0], typeList[1], divSearchInput, actualInput, false)
+                    if (!CONFIG.incrementTag) {
+                        search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
+                        await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+                    }
+                    return;
+                }
                 const color = type.style.border
                 if (color === "") {
                     type.style.border = "solid yellow"
@@ -1012,12 +1120,13 @@
                     if (!CONFIG.defaultQuery.includes(tagText)) {
                         CONFIG.defaultQuery += CONFIG.defaultQuery ? ` ${tagText}` : tagText;
                         const tagList = tagText.split(/:/)
-                        tag_to_badge(tagList[0], tagList[1], divDefaultInput, DefaultActualInput, false)
+                        tag_to_badge(tagList[0], tagList[1], divDefaultInput, defaultActualInput, false)
                         // localStorage.setItem('hitomiDefaultQuery', CONFIG.defaultQuery);
                         // updateDefaultQueryUI();
                     }
                     tag.style.border = ""
                 })
+                save_to_localstorage(saveButton, CONFIG.defaultQuery) // CONFIG.defaultQuery
             } 
             if (selectedType) {
                 selectedType.forEach(type => {
@@ -1025,10 +1134,11 @@
                     if (!CONFIG.defaultQuery.includes(typeText)) {
                         CONFIG.defaultQuery += CONFIG.defaultQuery ? ` ${typeText}` : typeText;
                         const typeList = typeText.split(/:/)
-                        tag_to_badge(typeList[0], typeList[1], divDefaultInput, DefaultActualInput, false)
+                        tag_to_badge(typeList[0], typeList[1], divDefaultInput, defaultActualInput, false)
                     }
                     type.style.border = ""
                 })
+                save_to_localstorage(saveButton, CONFIG.defaultQuery) // CONFIG.defaultQuery
             }
         });
 
@@ -1040,12 +1150,13 @@
                     if (!CONFIG.defaultQuery.includes(excludeText)) {
                         CONFIG.defaultQuery += CONFIG.defaultQuery ? ` ${excludeText}` : excludeText;
                         const tagList = tagText.split(/:/)
-                        tag_to_badge(tagList[0], tagList[1], divDefaultInput, DefaultActualInput, true)
+                        tag_to_badge(tagList[0], tagList[1], divDefaultInput, defaultActualInput, true)
                         // localStorage.setItem('hitomiDefaultQuery', CONFIG.defaultQuery);
                         // updateDefaultQueryUI();
                     }
                     tag.style.border = ""
                 })
+                save_to_localstorage(saveButton, CONFIG.defaultQuery) // CONFIG.defaultQuery
             } 
             if (selectedType) {
                 selectedType.forEach(type => {
@@ -1054,25 +1165,28 @@
                     if (!CONFIG.defaultQuery.includes(excludeText)) {
                         CONFIG.defaultQuery += CONFIG.defaultQuery ? ` ${excludeText}` : excludeText;
                         const typeList = typeText.split(/:/)
-                        tag_to_badge(typeList[0], typeList[1], divDefaultInput, DefaultActualInput, true)
+                        tag_to_badge(typeList[0], typeList[1], divDefaultInput, defaultActualInput, true)
                     }
                     type.style.border = ""
                 })
+                save_to_localstorage(saveButton, CONFIG.defaultQuery) // CONFIG.defaultQuery
             }
         });
     }
 
-    function search_post_process(divSearchInput, actualInput) {
-        STATE.fetchCount = 0
-        STATE.randomUsed = new Set()
+    function suggestion_listener(actualInput, divSuggestionC, divSearchC, divSearchInput) {
+        actualInput.addEventListener('input', debounce(async function() {
+            divSuggestionC.textContent = "";
+            const text = actualInput.value;
 
-        let text;
-        text = replace_smart_quotes(divSearchInput.outerText)
-        text = text.toLowerCase().trim()
-        text = wrap2space(text) // eg, series:blue_archive\ntype:doujinshi
-        text = (actualInput.value && text) ? `${text} ${actualInput.value}` : text
-        STATE.term = text
-    }
+            await get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput, actualInput);
+            if (divSuggestionC.children.length > 0) {
+                divSuggestionC.style.display = 'block';
+            } else {
+                divSuggestionC.style.display = 'none';
+            }
+        }, CONFIG.debounceTime));
+    } 
 
     async function nozomi_load(options = {}) {
         const {
@@ -1091,69 +1205,83 @@
         }
     }
 
+    const STORAGE = {
+        defaultQueryValue: 'defaultQueryValue'
+    }
+
     const CONFIG = {
         fetchIdjs: false,
         infScroll: true,
+        incrementTag: false,
         minPage: 0,
         galleriesPerPage: 25,
         debounceTime: 300,
-        defaultQuery: ""
+        defaultQuery: localStorage.getItem(STORAGE.defaultQueryValue) || ""
     };
 
     const STATE = {
-        domain: 'ltn.gold-usergeneratedcontent.net',
         fetching: false,
         fetchCount: 0,
-        indexObj: {},
-        orderBy: "",
-        randomUsed: new Set(),
         resultsCount: 0,
-        term: ""
+        domain: 'ltn.gold-usergeneratedcontent.net',
+        orderBy: "",
+        term: "",
+        indexObj: {},
+        randomUsed: new Set(),
     };
 
     document.documentElement.innerHTML = html;
 
-    const inputSearchInput = document.querySelector('div.SearchInput input');
     const divSearchInput = document.querySelector('div.SearchInput');
-    const actualInput = document.querySelector('.ActualInput')
     const divDefaultInput = document.querySelector('div.DefaultInput');
-    const DefaultActualInput = document.querySelector('div.DefaultInput .ActualInput')
+    const actualInput = document.querySelector('input.ActualInput')
+    const defaultActualInput = document.querySelector('div.DefaultInput .ActualInput')
     const divSearchC = document.querySelector("div.SearchContainer")
-    const divSuggestionC = document.querySelector("div.SuggestionContainer")
+    const divDefaultSearchC = document.querySelector('div.DefaultQueryContainer');
+    const divSuggestionC = document.querySelector("div.SearchContainer .SuggestionContainer")
+    const divDefaultSuggestionC = document.querySelector("div.DefaultQueryContainer .SuggestionContainer")
     const divCardC = document.querySelector("div.CardContainer")
     const searchButton = document.querySelector(".SearchContainer button")
+    const DefaultSaveButton = document.querySelector(".DefaultQueryContainer button")
     const aResCount = document.querySelector("a.ResultsCount")
-    const svgEye = document.querySelector("svg.eye")
+    const eyeContainer = document.querySelector("div.EyeContainer")
+    const svgEye = document.querySelector("div.EyeContainer .eye")
+    const eyeText = document.querySelector("div.EyeContainer a")
     const buttonAdd = document.querySelector("button.BtnAdd")
     const buttonEx = document.querySelector("button.BtnExclude")
 
     const optionOrderByDropdown = document.querySelectorAll("#orderbydropdown option")
 
-    await load(aResCount, divCardC) // STATE.fetching
+    await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
 
-    actualInput.addEventListener('input', debounce(async function() {
-        divSuggestionC.textContent = "";
-        const text = actualInput.value;
-
-        await get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput, actualInput);
-        if (divSuggestionC.children.length > 0) {
-            divSuggestionC.style.display = 'block';
-        } else {
-            divSuggestionC.style.display = 'none';
-        }
-    }, CONFIG.debounceTime));
-
-    suggestion_listener(divSearchInput, actualInput, divSearchC, divSuggestionC)
+    tag_listener(divSearchInput, actualInput, divSearchC, divSuggestionC, DefaultSaveButton)
+    tag_listener(divDefaultInput, defaultActualInput, divDefaultSearchC, divDefaultSuggestionC, DefaultSaveButton, true)
+    suggestion_listener(actualInput, divSuggestionC, divSearchC, divSearchInput)
+    suggestion_listener(defaultActualInput, divDefaultSuggestionC, divDefaultSearchC, divDefaultInput)
     order_listener(optionOrderByDropdown) // STATE.orderBy
     search_listener(searchButton, divSearchInput, divSuggestionC, actualInput)
-    picker_listener(svgEye, buttonAdd, buttonEx, divCardC, divDefaultInput, DefaultActualInput)
+    picker_listener(svgEye, buttonAdd, buttonEx, divDefaultInput, defaultActualInput, divSearchInput, actualInput, aResCount, divCardC, eyeText, eyeContainer, DefaultSaveButton)
+
+    CONFIG.defaultQuery.split(/\s+/).forEach(query => {
+        if (!query.length) return
+
+        if (query.includes(':')) {
+            const typeList = query.split(/:/)
+            if (query.startsWith('-')) {
+                tag_to_badge(typeList[0], typeList[1], divDefaultInput, defaultActualInput, true)
+            } else {
+                tag_to_badge(typeList[0], typeList[1], divDefaultInput, defaultActualInput, false)
+            }
+        }
+        else defaultActualInput.value = query
+    })
 
     if (CONFIG.infScroll) {
         const observer = new IntersectionObserver(async (entries) => {
             const entry = entries[0];
 
             if (entry.isIntersecting && !STATE.fetching) {
-                await load(aResCount, divCardC) // STATE.fetching
+                await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
             }
         }, {
             root: null,
