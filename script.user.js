@@ -20,44 +20,41 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
         <style>
-            body {margin: 0; background-color: hsl(0, 0%, 13%); font-family: "Noto Sans JP", sans-serif;}
-            table tr td a {color: #fff9; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all;}
-            strong {color: cyan;}
-            span svg {color: lightgrey; margin-right: 8px; cursor: pointer;}
+            :root {--radius: 0.375rem; --white: rgb(211, 211, 211); --dimWhite: rgb(140, 140, 140); --grey: #6c757d; --blue: #0d6efd; --green: #28a745; --red: #dc3545; --btnGreen: #198754; --btnRed: #a13643;}
 
-            .Card img, tr th {width: 100%; border-radius: 0.375rem;}
-            input, svg {color: white;}
-            .BtnGreen, .BtnGreenOut, .BtnRed {border-radius: 0.375rem;}
-            .BtnGreen, .BtnGreenOut:hover, .BtnRed {color: white;}
-            .BadgeBlue, .BadgeGreen, .BadgeGrey, .BadgeRed {border-radius: 0.375rem; padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
+            body {margin: 0; background-color: hsl(0, 0%, 13%);}
+            table tr td a {display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all; color: var(--dimWhite); text-decoration: none;}
+            strong {color: cyan;}
+            span svg {color: var(--white); margin-right: 8px; cursor: pointer;}
+
+            input, svg {color: var(--white);}
+            .BtnGreen, .BtnGreenOut, .BtnRed {border-radius: var(--radius);}
+            .BtnGreen, .BtnGreenOut:hover, .BtnRed {color: var(--white);}
+            .BadgeBlue, .BadgeGreen, .BadgeGrey, .BadgeRed {border-radius: var(--radius); padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
             .BadgeBlue, .BadgeGreen, .BadgeRed {display: flex; align-items: center; white-space: nowrap;}
             .InputContainer, .NavbarContainer {display: flex; justify-content: space-between}
             .DefaultQueryContainer, .PickerContainer, .SearchContainer {display: flex; justify-content: space-between; width: 100%;}
-            .Suggestion, .SuggestionFocus {display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid #696969}
-            .DefaultInput, .SearchInput {width: 240px; overflow: auto; display: flex; background-color: hsl(0, 0%, 16%); border: 1px solid hsl(0, 0%, 25%); border-radius: 0.375rem; color: white;}
+            .DefaultInput, .SearchInput {width: 240px; overflow: auto; display: flex; background-color: hsl(0, 0%, 16%); border: 1px solid hsl(0, 0%, 25%); border-radius: var(--radius); color: var(--white);}
 
             .NavbarContainer a {margin: auto auto auto 0;}
             .InputContainer button {margin-right: 5px; white-space: nowrap; overflow: hidden;}
-            .CardTableContainer table {color: #fff9;}
-            .CardTagsContainer a {margin-right: 5%; text-decoration: none; color: white;}
-            .Card img {height: 220px; object-fit: cover;}
+            .CardTableContainer table {color: var(--dimWhite);}
+            .CardTagsContainer a {margin-right: 5%; text-decoration: none; color: var(--white);}
+            .Card img {width: 100%; height: 220px; object-fit: cover; border-radius: var(--radius);}
             .EyeContainer a {white-space: nowrap; display: none;}
 
             input:focus {background-color: transparent; border: none; outline: none;}
-            .Suggestion:hover { background-color: #2c2f33; display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid dimgrey;}
-            .BtnGreenOut:hover {background-color: #198754;}
-            .CardTagsContainer::-webkit-scrollbar-thumb:hover {background: transparent;}
-            .CardTagsContainer::-webkit-scrollbar-thumb {background: transparent;}
-            .CardTagsContainer::-webkit-scrollbar-track {background: transparent;}
+            .Suggestion:hover {background-color: hsl(0, 0%, 10%); cursor: pointer;}
+            .BtnGreenOut:hover {background-color: var(--btnGreen);}
 
-            .BtnGreenOut {color: #198754; background-color: transparent; border: 1px solid #198754;}
-            .BtnGreen {background-color: #198754; border: 1px solid #198754;}
-            .BtnRed {background-color: #a13643; border: 1px solid #a13643;}
+            .BtnGreenOut {color: var(--btnGreen); background-color: transparent; border: 1px solid var(--btnGreen);}
+            .BtnGreen {background-color: var(--btnGreen); border: 1px solid var(--btnGreen);}
+            .BtnRed {background-color: var(--btnRed); border: 1px solid var(--btnRed);}
 
-            .BadgeGrey {background-color: #6c757d;}
-            .BadgeBlue {background-color: #0d6efd;}
-            .BadgeGreen {background-color: #28a745;}
-            .BadgeRed {background-color: #dc3545;}
+            .BadgeGrey {background-color: var(--grey);}
+            .BadgeBlue {background-color: var(--blue);}
+            .BadgeGreen {background-color: var(--green);}
+            .BadgeRed {background-color: var(--red);}
 
             .Container {display: flex; flex-direction: column; justify-content: center;}
             .NavbarContainer {flex-direction: row; width: 100%; height: 100px; background-color: hsl(0, 0%, 19%);}
@@ -67,28 +64,29 @@
             .PickerContainer {align-items: center; height: 35px; background-color: hsl(0, 0%, 16%); position: sticky; top: 0;}
             .BtnContainer {display: flex; height: 100%;}
             .BtnContainer button{width: 40px;}
-            .CardContainer {display: flex; flex-wrap: wrap; justify-content: space-around; color: white; background-color: hsl(0, 0%, 10%); border-radius: 0.375rem; gap: 20px; margin: 10px;}
-            .CardTableContainer {display: flex; flex-direction: column; align-items: center; overflow-x: auto;}
-            .CardTagsContainer {scrollbar-width: thin; display: flex; overflow-x: auto; white-space: nowrap; background-color: #00000038; width: 100%; scrollbar-color: rgba(0,0,0,0.4) transparent;}
-            .PageContainer {height: 100px; background-color: white;}
-            .SuggestionContainer {display: none; margin: 0; position: absolute; z-index: 1; background-color: #212529; color: white; border: 1px solid dimgrey; border-radius: 0.375rem;}
-            .EyeContainer {display: flex; background-color: transparent; border-radius: 0.375rem; padding: 5px; gap: 5px;}
+            .CardContainer {display: flex; flex-wrap: wrap; justify-content: space-around; color: var(--white); background-color: hsl(0, 0%, 10%); border-radius: var(--radius); gap: 20px; margin: 10px;}
+            .CardTableContainer {display: flex; flex-direction: column; align-items: center; overflow-x: auto; align-self: start;}
+            .CardTagsContainer {scrollbar-width: thin; display: flex; overflow-x: auto; white-space: nowrap; background-color: hsl(0, 0%, 10%); width: 100%; scrollbar-color: darkgray transparent; margin-left: 10px; padding-right: 40px; box-sizing: border-box;}
+            .PageContainer {height: 100px; background-color: var(--white);}
+            .SuggestionContainer {display: none; margin: 0; position: absolute; z-index: 1; background-color: hsl(0, 0%, 13%); color: var(--white); border: 1px solid hsl(0, 0%, 18%); border-radius: var(--radius);}
+            .EyeContainer {display: flex; background-color: transparent; border-radius: var(--radius); padding: 5px; gap: 5px;}
             .InfoContainer {display: flex; justify-content: space-between; flex-direction: row-reverse; padding: 20px; align-items: center;}
             .TagContainer {display: flex; align-items: center;}
-            .ContentContainer {background-color: hsl(0, 0%, 10%); margin: 1rem 3% auto 3%; border-radius: 0.375rem; overflow: hidden;}
+            .ContentContainer {background-color: hsl(0, 0%, 10%); margin: 3% 3% auto 3%; border-radius: var(--radius); overflow: hidden;}
+            .BottomContainer {display: ruby; }
 
             .eye {margin-left: 1%;}
-            .CardTitle {font-weight: bold; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all;}
+            .CardTitle {font-weight: bold; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all; color: var(--white);}
             .page {width: fit-content;}
-            .Card {display: flex; flex-direction: column; flex: 1 1 194px; max-width: 220px; height: 475px; /*! margin: 1%; */ background-color: hsl(0, 0%, 14%); overflow: hidden; justify-content: space-between; border-radius:0.375rem; border:1px solid hsl(0, 0%, 19%); padding: 5px; gap: 10px;}
-            .SuggestionFocus {background-color: #2c2f33;}
-            .SuggestionText {flex: 1; overflow: hidden; text-overflow: ellipsis; }
-            .SuggestionArea {color: darkgrey}
+            .Card {display: flex; flex-direction: column; flex: 1 1 200px; max-width: 250px; background-color: hsl(0, 0%, 14%); overflow: hidden; justify-content: space-between; border-radius: var(--radius); border:1px solid hsl(0, 0%, 19%); padding: 5px; gap: 10px;}
+            .Suggestion {display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid hsl(0, 0%, 18%);}
+            .SuggestionText {flex: 1; overflow: hidden; text-overflow: ellipsis;}
+            .SuggestionArea {color: var(--dimWhite);}
 
-            .ActualInput {color: white; background-color: transparent; border: none; font-weight: 700; overflow: visible;}
+            .ActualInput {color: var(--white); background-color: transparent; border: none; font-weight: bold; overflow: visible;}
             .BetweenInput {background-color: transparent; border: none; width: 1px;}
 
-            .ResultsCount {color: white;}
+            .ResultsCount {color: var(--dimWhite);}
             #scrollSentinel {height: 1px}
         </style>
     </head>
@@ -167,11 +165,11 @@
         return idsList
     }
 
-    async function filter_contents(idsList, fetchIdjs = CONFIG.fetchIdjs) {
-        function fetch_page_num(id, fetchIdjs) {
+    async function filter_contents(idsList, fetchPageNum = CONFIG.fetchPageNum, picPreview = CONFIG.picPreview) {
+        function fetch_id_js(id, fetchPageNum, picPreview) {
             const res = {};
             return new Promise((resolve) => {
-                if (!fetchIdjs) {
+                if (!fetchPageNum && !picPreview) {
                     res[id] = null;
                     resolve(res);
                     return;
@@ -179,10 +177,25 @@
                 const script = document.createElement('script');
                 script.src = `//${STATE.domain}/galleries/${id}.js`;
                 script.onload = () => {
-                    if (typeof galleryinfo !== 'undefined' && galleryinfo.files) {
-                        const pageCount = galleryinfo.files.length;
-                        res[id] = pageCount;
+                    if (typeof galleryinfo === 'undefined' || !galleryinfo.files) {
+                        resolve(res);
+                        document.head.removeChild(script);
+                        return;
                     }
+                    const files = galleryinfo.files;
+                    const result = {};
+                    if (picPreview) {
+                        const step = Math.round(files.length / CONFIG.picPreviewPerPage);
+                        const newList = [];
+                        for (let i = step; i < files.length; i += step) {
+                            newList.push(files[i]);
+                        }
+                        result.files = newList;
+                    }
+                    if (fetchPageNum) {
+                        result.num = files.length;
+                    }
+                    res[id] = result;
                     resolve(res);
                     document.head.removeChild(script);
                 };
@@ -194,7 +207,7 @@
         const promises = []
 
         idsList.forEach(id => {
-            promises.push(fetch_page_num(id, fetchIdjs));
+            promises.push(fetch_id_js(id, fetchPageNum, picPreview));
         })
 
         const promisesList = await Promise.allSettled(promises);
@@ -208,8 +221,8 @@
         });
 
         console.log('idsObj IDs sample:', idsObj);
-        if (!fetchIdjs) return idsObj
 
+        if (!fetchPageNum) return idsObj
         for (const [key, value] of Object.entries(idsObj)) {
             if (value < CONFIG.minPage) {
                 delete idsObj[key]
@@ -325,6 +338,7 @@
 
             const aCardTitle = document.createElement("a")
             aCardTitle.className = "CardTitle"
+            aCardTitle.href = url.replace("ltn.gold-usergeneratedcontent.net", "hitomi.la")
 
             const table = document.createElement("table")
 
@@ -334,9 +348,14 @@
             const divTagC = document.createElement("div")
             divTagC.className = "CardTagsContainer"
 
+            const divbottomC = document.createElement("div")
+            divbottomC.className = "BottomContainer"
+
             const aPic = document.createElement("a")
             aPic.href = url.replace("ltn.gold-usergeneratedcontent.net", "hitomi.la")
             aPic.target = "_blank"
+
+            pic_preview_listener(aPic, id, idsObj)
 
             aPic.appendChild(pic)
             divCard.appendChild(aPic)
@@ -344,15 +363,16 @@
             divCard.appendChild(aCardTitle)
             divCard.appendChild(divTableC)
             divTableC.appendChild(table)
-            divCard.appendChild(aPage)
-            divCard.appendChild(divTagC)
+            divbottomC.appendChild(aPage)
+            divbottomC.appendChild(divTagC)
+            divCard.appendChild(divbottomC)
 
             aCardTitle.textContent = title
             create_table("language", language, table)
             create_table("type", type, table)
             create_table("artist", artistList, table)
             create_table('series', seriesList, table)
-            aPage.textContent = idsObj[id] ? `${idsObj[id]}p` : "N/A"
+            aPage.textContent = idsObj[id].num ? `${idsObj[id].num}p` : "N/A"
             generate_tags(tags, divTagC)
             resolve()
         })
@@ -761,40 +781,48 @@
         divSearchInput.addEventListener('keydown', arrow_process)
     }
 
-    function clean_text(text) {
+    function get_search_input_text(divSearchInput, actualInput, shouldDefQuery = false) {
+        function clean_text(text) {
+            text = replace_smart_quotes(text)
+            text = text.toLowerCase().trim()
+            text = wrap2space(text)
+            return text
+        }
+        function merge_text(text) {
+            const set = new Set()
+            text.split(/\s+/).forEach(query => {
+                if (!query.length) return
+                set.add(query)
+            })
+            const res = Array.from(set).join(' ')
+            return res
+        }
+        let tagQuery = "", inputQuery = "", res = ""
+        const badges = divSearchInput.querySelectorAll('span');
+        badges.forEach(badge => {
+            tagQuery += clean_text(badge.textContent) + " ";
+        });
+        inputQuery = clean_text(actualInput.value)
 
-        tagQuery = replace_smart_quotes(divSearchInput.outerText)
-        tagQuery = tagQuery.toLowerCase().trim()
-        tagQuery = wrap2space(tagQuery) // eg, series:blue_archive\ntype:doujinshi
-
-        inputQuery = replace_smart_quotes(actualInput.value)
-        inputQuery = inputQuery.toLowerCase().trim()
-        return text
-    }
-
-    function search_post_process(divSearchInput, actualInput) {
-        let defQuery, tagQuery, inputQuery
-        defQuery = replace_smart_quotes(CONFIG.defaultQuery)
-        defQuery = defQuery.toLowerCase().trim()
-
-        const set = new set()
-        const temp = [defQuery, tagQuery, inputQuery]
-        temp.forEach(rawQuery => {
-            const querySplited = rawQuery.split(/\s+/)
-            querySplited.forEach(query => set.add(query))
-        })
-        const res = Array.from(set).join(' ')
+        if (shouldDefQuery) res = merge_text(`${tagQuery} ${inputQuery} ${clean_text(CONFIG.defaultQuery)}`)
+        else res = merge_text(`${tagQuery} ${inputQuery}`)
 
         return res
     }
 
-    async function load(aResCount, divCardC, divSearchInput, actualInput) {
+    function search_post_process(divSearchInput, actualInput) {
+        STATE.fetchCount = 0
+        STATE.randomUsed = new Set()
+        const res = get_search_input_text(divSearchInput, actualInput, true)
+        return res
+    }
+
+    async function load(aResCount, divCardC, text) {
         STATE.fetching = true
 
         if (STATE.fetchCount === 0) divCardC.innerHTML = ""
 
         let idsList
-        const text = search_post_process(divSearchInput, actualInput) 
         if (!text.length) {
             idsList = await nozomi_load({ fetchAll: false });
             STATE.resultsCount = 0
@@ -823,7 +851,7 @@
             if (event.target.closest('.bi-x-circle-fill')) {
                 event.target.closest('.TagContainer').remove();
                 if (isDefaultQuery) {
-                    const text = search_post_process(divSearchInput, actualInput)
+                    const text = get_search_input_text(divSearchInput, actualInput)
                     save_to_localstorage(saveButton, text) // CONFIG.defaultQuery
                 }
             }
@@ -957,11 +985,11 @@
         return query;
     }
 
-    function search_listener(searchButton, divSearchInput, divSuggestionC, actualInput) {
+    function search_listener(searchButton, divSearchInput, divSuggestionC, actualInput, aResCount, divCardC) {
         let isFocust;
         searchButton.addEventListener('click', async function() {
-            search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
-            await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+            const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
+            await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
         });
         divSearchInput.addEventListener('keydown', async function(e) {
             if (e.key !== 'Enter') return
@@ -973,8 +1001,8 @@
             }
 
             if (!isFocust) {
-                search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
-                await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+                const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
+                await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
             }
             isFocust = false;
         })
@@ -1042,7 +1070,7 @@
         })
 
         saveButton.addEventListener('click', () => {
-            const text = search_post_process(divDefaultInput, defaultActualInput, true)
+            const text = get_search_input_text(divDefaultInput, defaultActualInput)
             save_to_localstorage(saveButton, text) // CONFIG.defaultQuery
         })
 
@@ -1078,8 +1106,8 @@
                     const tagList = tagText.split(/:/)
                     tag_to_badge(tagList[0], tagList[1], divSearchInput, actualInput, false)
                     if (!CONFIG.incrementTag) {
-                        search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
-                        await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+                        const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
+                        await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
                     }
                     return;
                 }
@@ -1100,8 +1128,8 @@
                     const typeList = typeText.split(/:/)
                     tag_to_badge(typeList[0], typeList[1], divSearchInput, actualInput, false)
                     if (!CONFIG.incrementTag) {
-                        search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
-                        await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+                        const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
+                        await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
                     }
                     return;
                 }
@@ -1186,7 +1214,77 @@
                 divSuggestionC.style.display = 'none';
             }
         }, CONFIG.debounceTime));
-    } 
+    }
+
+    function pic_preview_listener(pic, id, idsObj) {
+        //url_from_hash
+        function hash_to_url(image, dir = 'avif') {
+            function subdomain_from_url(url) {
+                let sub = 'a';
+
+                // if (!base) {
+                //     if (dir === 'webp') sub = 'w';
+                //     else if (dir === 'avif') sub = 'a';
+                // }
+
+                const m = /\/[0-9a-f]{61}([0-9a-f]{2})([0-9a-f])/.exec(url);
+                if (!m) return sub;
+
+                const g = parseInt(m[2] + m[1], 16);
+                if (Number.isNaN(g)) return sub;
+
+                const v = gg.m(g);
+                return sub + (v + 1);
+            }
+            function full_path_from_hash(hash) {
+                    return gg.b+gg.s(hash)+'/'+hash;
+            }
+
+            let url = '', subDomain = '', pathDir = '', ext = 'webp'
+
+            if (dir && dir !== 'webp' && dir !== 'avif') {
+                pathDir = dir + '/';
+            }
+
+            url = `https://a.gold-usergeneratedcontent.net/${pathDir}${full_path_from_hash(image.hash)}.${ext}`;
+            subDomain = subdomain_from_url(url)
+
+            return url.replace(/\/\/..?\.(?:gold-usergeneratedcontent\.net|hitomi\.la)\//, '//'+subDomain+'.'+"gold-usergeneratedcontent.net"+'/'); 
+        }
+
+        if (!CONFIG.picPreview) return;
+
+        let i = 1
+        pic.addEventListener('click', (e) => {
+            e.preventDefault();
+
+            const rect = pic.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const halfWidth = rect.width / 2;
+
+            if (x < halfWidth) {
+                i--
+                i = i < 0 ? CONFIG.picPreviewPerPage-1 : i
+                console.log(idsObj[id].files[i])
+                let src = pic.querySelector('img')
+                let source = pic.querySelector('source')
+                src.setAttribute('src', hash_to_url(idsObj[id].files[i]));
+                src.setAttribute('data-src', hash_to_url(idsObj[id].files[i]));
+                source.setAttribute('srcset', hash_to_url(idsObj[id].files[i]));
+                source.setAttribute('data-srcset', hash_to_url(idsObj[id].files[i]));
+            } else {
+                i++
+                i = i > CONFIG.picPreviewPerPage-1 ? 0 : i
+                console.log(idsObj[id].files[i])
+                let src = pic.querySelector('img')
+                let source = pic.querySelector('source')
+                src.setAttribute('src', hash_to_url(idsObj[id].files[i]));
+                src.setAttribute('data-src', hash_to_url(idsObj[id].files[i]));
+                source.setAttribute('srcset', hash_to_url(idsObj[id].files[i]));
+                source.setAttribute('data-srcset', hash_to_url(idsObj[id].files[i]));
+            }
+        });
+    }
 
     async function nozomi_load(options = {}) {
         const {
@@ -1210,12 +1308,14 @@
     }
 
     const CONFIG = {
-        fetchIdjs: false,
+        fetchPageNum: false,
+        picPreview: true,
         infScroll: true,
         incrementTag: false,
         minPage: 0,
         galleriesPerPage: 25,
         debounceTime: 300,
+        picPreviewPerPage: 5,
         defaultQuery: localStorage.getItem(STORAGE.defaultQueryValue) || ""
     };
 
@@ -1231,6 +1331,11 @@
     };
 
     document.documentElement.innerHTML = html;
+
+    window.gg = undefined;
+    const script = document.createElement('script');
+    script.src = 'https://ltn.gold-usergeneratedcontent.net/gg.js';
+    document.head.appendChild(script);
 
     const divSearchInput = document.querySelector('div.SearchInput');
     const divDefaultInput = document.querySelector('div.DefaultInput');
@@ -1252,14 +1357,15 @@
 
     const optionOrderByDropdown = document.querySelectorAll("#orderbydropdown option")
 
-    await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+    const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
+    await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
 
     tag_listener(divSearchInput, actualInput, divSearchC, divSuggestionC, DefaultSaveButton)
     tag_listener(divDefaultInput, defaultActualInput, divDefaultSearchC, divDefaultSuggestionC, DefaultSaveButton, true)
     suggestion_listener(actualInput, divSuggestionC, divSearchC, divSearchInput)
     suggestion_listener(defaultActualInput, divDefaultSuggestionC, divDefaultSearchC, divDefaultInput)
     order_listener(optionOrderByDropdown) // STATE.orderBy
-    search_listener(searchButton, divSearchInput, divSuggestionC, actualInput)
+    search_listener(searchButton, divSearchInput, divSuggestionC, actualInput, aResCount, divCardC)
     picker_listener(svgEye, buttonAdd, buttonEx, divDefaultInput, defaultActualInput, divSearchInput, actualInput, aResCount, divCardC, eyeText, eyeContainer, DefaultSaveButton)
 
     CONFIG.defaultQuery.split(/\s+/).forEach(query => {
@@ -1281,7 +1387,8 @@
             const entry = entries[0];
 
             if (entry.isIntersecting && !STATE.fetching) {
-                await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+                const text = get_search_input_text(divSearchInput, actualInput, true) // STATE.fetchCount, STATE.randomUsed
+                await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
             }
         }, {
             root: null,

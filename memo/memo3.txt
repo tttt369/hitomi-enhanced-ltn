@@ -1,0 +1,8 @@
+common.js: hitomic('tomasz', 'default');
+スクリプト付きdivが追加
+reader.js: init()
+reader.js: desktop_init()
+reader.js: hashChanged()
+reader.js: singleSpread();
+reader.js: spread()
+reader.js: drawpanel()

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>test</title>
+    <style>
+        .Div {
+            display: flex;
+            width: 200px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .Div img {
+            min-width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.1s linear; 
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            background-color: #ddd;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+        .dot.active {
+            background-color: #333;
+        }
+        .CardWrapper {
+            width: 200px;
+        }
+        .dots-container {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="CardWrapper">
+        <div class="Div" id="imageContainer">
+            <img src="https://picsum.photos/id/1/200/300" loading="lazy">
+            <img src="https://picsum.photos/id/12/200/300" loading="lazy">
+            <img src="https://picsum.photos/id/23/200/300" loading="lazy">
+            <img src="https://picsum.photos/id/34/200/300" loading="lazy">
+            <img src="https://picsum.photos/id/45/200/300" loading="lazy">
+        </div>
+        <div class="dots-container" id="dotsContainer"></div>
+    </div>
+    <script>
+        const container = document.getElementById('imageContainer');
+        const dotsContainer = document.getElementById('dotsContainer');
+        const images = container.querySelectorAll('img');
+        const totalImages = images.length;
+        
+        const dots = [];
+        images.forEach((_, i) => {
+            const dot = document.createElement('div');
+            dot.classList.add('dot');
+            
+            if (i === 0) dot.classList.add('active');
+            
+            dotsContainer.appendChild(dot);
+            dots.push(dot);
+        });
+
+        const updateView = (index) => {
+            images.forEach((img) => {
+                img.style.transform = `translateX(-${index * 100}%)`;
+            });
+
+            dots.forEach((dot, i) => {
+                if (i === index) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+        };
+
+        container.addEventListener('mousemove', (e) => {
+            const rect = container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const width = rect.width;
+
+            let index = Math.floor((x / width) * totalImages);
+            index = Math.max(0, Math.min(index, totalImages - 1));
+
+            updateView(index);
+        });
+
+        container.addEventListener('mouseleave', () => {
+            updateView(0);
+        });
+    </script>
+</body>
+</html>
