@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         hitomi-enhanced-ltn
 // @namespace    Violentmonkey Scripts
-// @match        https://ltn.gold-usergeneratedcontent.net/page.css
-// @grant        none
+// @match        https://ltn.gold-usergeneratedcontent.net/favicon-192x192.png
+// @grant        GM_xmlhttpRequest
 // @require      https://raw.github.com/emn178/js-sha256/master/build/sha256.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
 // @version      0.0
@@ -36,7 +36,7 @@
             .DefaultQueryContainer, .PickerContainer, .SearchContainer {display: flex; justify-content: space-between; width: 100%;}
             .DefaultInput, .SearchInput {width: 240px; overflow: auto; display: flex; background-color: hsl(0, 0%, 16%); border: 1px solid hsl(0, 0%, 25%); border-radius: var(--radius); color: var(--white);}
 
-            .NavbarContainer a {margin: auto auto auto 0;}
+            .NavbarContainer a {margin: auto auto auto 10px;}
             .InputContainer button {margin-right: 5px; white-space: nowrap; overflow: hidden;}
             .CardTableContainer table {color: var(--dimWhite);}
             .CardTagsContainer a {margin-right: 5%; text-decoration: none; color: var(--white);}
@@ -73,12 +73,12 @@
             .InfoContainer {display: flex; justify-content: space-between; flex-direction: row-reverse; padding: 20px; align-items: center;}
             .TagContainer {display: flex; align-items: center;}
             .ContentContainer {background-color: hsl(0, 0%, 10%); margin: 3% 3% auto 3%; border-radius: var(--radius); overflow: hidden;}
-            .BottomContainer {display: ruby; }
+            .BottomContainer {display: -webkit-box;}
 
             .eye {margin-left: 1%;}
             .CardTitle {font-weight: bold; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all; color: var(--white);}
             .page {width: fit-content;}
-            .Card {display: flex; flex-direction: column; flex: 1 1 200px; max-width: 250px; background-color: hsl(0, 0%, 14%); overflow: hidden; justify-content: space-between; border-radius: var(--radius); border:1px solid hsl(0, 0%, 19%); padding: 5px; gap: 10px;}
+            .Card {display: flex; flex-direction: column; flex: 1 1 190px; max-width: 220px; background-color: hsl(0, 0%, 14%); overflow: hidden; justify-content: space-between; border-radius: var(--radius); border:1px solid hsl(0, 0%, 19%); padding: 5px; gap: 10px;}
             .Suggestion {display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid hsl(0, 0%, 18%);}
             .SuggestionText {flex: 1; overflow: hidden; text-overflow: ellipsis;}
             .SuggestionArea {color: var(--dimWhite);}
@@ -93,7 +93,7 @@
     <body>
         <div class="Container">
             <div class="NavbarContainer">
-                <a href="https://ltn.gold-usergeneratedcontent.net/page.css">
+                <a href="https://ltn.gold-usergeneratedcontent.net/favicon-192x192.png">
                     <img src="//ltn.gold-usergeneratedcontent.net/logo.png"></img>
                 </a>
                 <div class="InputContainer">
@@ -165,42 +165,49 @@
         return idsList
     }
 
-    async function filter_contents(idsList, fetchPageNum = CONFIG.fetchPageNum, picPreview = CONFIG.picPreview) {
-        function fetch_id_js(id, fetchPageNum, picPreview) {
-            const res = {};
-            return new Promise((resolve) => {
-                if (!fetchPageNum && !picPreview) {
-                    res[id] = null;
-                    resolve(res);
-                    return;
+    async function filter_contents(idsList, options = {}) {
+        const {
+            fetchPageNum = CONFIG.fetchPageNum,
+            picPreview = (CONFIG.picPreviewPerPage >= 1) ? true : false,
+        } = options;
+
+        async function fetch_id_js(id, fetchPageNum, picPreview) {
+            const result = { num: 0, previewFiles: [] }
+            if (!fetchPageNum && !picPreview) return { id, data: result }
+
+            const url = `https://ltn.${STATE.domain}/galleries/${id}.js`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const text = await response.text();
+            
+            const startIdx = text.indexOf('{');
+            const endIdx = text.lastIndexOf('}');
+            if (startIdx === -1 || endIdx === -1) return null;
+            
+            const jsonStr = text.substring(startIdx, endIdx + 1);
+            const galleryinfo = JSON.parse(jsonStr);
+            if (!galleryinfo || !galleryinfo.files) return null;
+
+            const files = galleryinfo.files;
+
+            if (fetchPageNum) {
+                result.num = files.length;
+            }
+
+            if (picPreview) {
+                const step = Math.round(files.length / CONFIG.picPreviewPerPage) || 1;
+                const previewFiles = [];
+                for (let i = 0; i < files.length; i += step) {
+                    previewFiles.push(files[i]);
                 }
-                const script = document.createElement('script');
-                script.src = `//${STATE.domain}/galleries/${id}.js`;
-                script.onload = () => {
-                    if (typeof galleryinfo === 'undefined' || !galleryinfo.files) {
-                        resolve(res);
-                        document.head.removeChild(script);
-                        return;
-                    }
-                    const files = galleryinfo.files;
-                    const result = {};
-                    if (picPreview) {
-                        const step = Math.round(files.length / CONFIG.picPreviewPerPage);
-                        const newList = [];
-                        for (let i = step; i < files.length; i += step) {
-                            newList.push(files[i]);
-                        }
-                        result.files = newList;
-                    }
-                    if (fetchPageNum) {
-                        result.num = files.length;
-                    }
-                    res[id] = result;
-                    resolve(res);
-                    document.head.removeChild(script);
-                };
-                document.head.appendChild(script);
-            });
+                result.previewFiles = previewFiles;
+            }
+
+            return { id, data: result };
         }
 
         const idsObj = {}
@@ -210,24 +217,21 @@
             promises.push(fetch_id_js(id, fetchPageNum, picPreview));
         })
 
-        const promisesList = await Promise.allSettled(promises);
+        const promisesList = await Promise.all(promises);
 
-        promisesList.forEach(r => {
-            if (r.status === 'fulfilled' && r.value) {
-                const keys = Object.keys(r.value)[0]
-                const values = Object.values(r.value)[0]
-                idsObj[keys] = values
+        for (const item of promisesList) {
+            if (!item || !item.data) continue;
+
+            if (fetchPageNum && CONFIG.minPage >= 1 && item.data.num < CONFIG.minPage) {
+                continue;
             }
-        });
-
-        console.log('idsObj IDs sample:', idsObj);
-
-        if (!fetchPageNum) return idsObj
-        for (const [key, value] of Object.entries(idsObj)) {
-            if (value < CONFIG.minPage) {
-                delete idsObj[key]
+            if (fetchPageNum && CONFIG.maxPage >= 1 && CONFIG.maxPage < item.data.num) {
+                continue;
             }
+
+            idsObj[item.id] = item.data;
         }
+
         console.log('idsObj IDs sample:', idsObj);
         return idsObj
     };
@@ -268,13 +272,13 @@
         const promises = [];
         for (let i = 0; i < count; ++i) {
             const galleryId = idsList[i];
-            const url = `//${STATE.domain}/galleryblock/${galleryId}.html`;
+            const url = `//ltn.${STATE.domain}/galleryblock/${galleryId}.html`;
             promises.push(xhr_get(url, { responseType: "text" }));
         }
 
-        const results = await Promise.allSettled(promises);
+        const results = await Promise.all(promises);
         for (const r of results) {
-            if (r.status === "fulfilled") galleriesList.push(r.value);
+            galleriesList.push(r);
         }
 
         ++STATE.fetchCount;
@@ -288,7 +292,7 @@
                 const list = isList ? Array.from(listOrItem) : [listOrItem];
 
                 const text = list.length ? list[0].textContent : defaultText;
-                const href = list.length ? list[0].href.replace(`https://${STATE.domain}`, "") : "/index-japanese.html";
+                const href = list.length ? list[0].href.replace(`https://ltn.${STATE.domain}`, "") : "/index-japanese.html";
 
                 container.insertAdjacentHTML(
                   'beforeend',
@@ -548,27 +552,27 @@
             const prefix = 'n'; 
             
             if (area === 'language') {
-                return `//${STATE.domain}/${prefix}/${tag}-${language}.nozomi`;
+                return `//ltn.${STATE.domain}/${prefix}/${tag}-${language}.nozomi`;
             }
             if (orderby === 'random') {
-                return `//${STATE.domain}/${prefix}/${area}/${tag}-${language}.nozomi`;
+                return `//ltn.${STATE.domain}/${prefix}/${area}/${tag}-${language}.nozomi`;
             }
             if (orderby.includes(':')) { // popular:year など
                 const [sort, key] = orderby.split(':');
-                return `//${STATE.domain}/${prefix}/${area}/${sort}/${key}/${tag}-${language}.nozomi`;
+                return `//ltn.${STATE.domain}/${prefix}/${area}/${sort}/${key}/${tag}-${language}.nozomi`;
             }
-            return `//${STATE.domain}/${prefix}/${area}/${tag}-${language}.nozomi`; 
+            return `//ltn.${STATE.domain}/${prefix}/${area}/${tag}-${language}.nozomi`; 
         }
 
         async function get_galleryids_for_keyword(term) {
             const key = new Uint8Array(sha256.array(term).slice(0, 4));
-            const versionUrl = `//${STATE.domain}/galleriesindex/version?_=${Date.now()}.index`;
+            const versionUrl = `//ltn.${STATE.domain}/galleriesindex/version?_=${Date.now()}.index`;
 
             if (!STATE.indexObj[versionUrl]) {
                 STATE.indexObj[versionUrl] = await xhr_get(versionUrl, { responseType: "text" });
             }
-            const indexUrl = `//${STATE.domain}/galleriesindex/galleries.${STATE.indexObj[versionUrl]}.index`;
-            const dataUrl = `//${STATE.domain}/galleriesindex/galleries.${STATE.indexObj[versionUrl]}.data`;
+            const indexUrl = `//ltn.${STATE.domain}/galleriesindex/galleries.${STATE.indexObj[versionUrl]}.index`;
+            const dataUrl = `//ltn.${STATE.domain}/galleriesindex/galleries.${STATE.indexObj[versionUrl]}.data`;
             
             const arrayBuf = await xhr_get(indexUrl, { step: 464 });
             const node = decode_node(new Uint8Array(arrayBuf));
@@ -589,7 +593,7 @@
 
         let results = null
         if (posTerms.length === 0) {
-            results = await nozomi_load({ url: `//${STATE.domain}/n/index-all.nozomi` }); // STATE.indexObj
+            results = await nozomi_load({ url: `//ltn.${STATE.domain}/n/index-all.nozomi` }); // STATE.indexObj
         } else {
             for (let i = 0; i < posTerms.length; i++) {
                 const ids = await fetch_term_data(posTerms[i]);
@@ -813,40 +817,54 @@
     function search_post_process(divSearchInput, actualInput) {
         STATE.fetchCount = 0
         STATE.randomUsed = new Set()
-        const res = get_search_input_text(divSearchInput, actualInput, true)
-        return res
+        STATE.term = get_search_input_text(divSearchInput, actualInput, true)
     }
 
-    async function load(aResCount, divCardC, text) {
-        STATE.fetching = true
+    async function load(aResCount, divCardC, text = STATE.term) {
+        STATE.fetching = true;
+        if (STATE.fetchCount === 0) divCardC.innerHTML = "";
 
-        if (STATE.fetchCount === 0) divCardC.innerHTML = ""
+        let galleriesList = [], idsObj = {}, trial = 0;
+        while (trial < CONFIG.trialLimit) {
+            let idsList = [];
+            if (!text.length) {
+                idsList = await nozomi_load({ fetchAll: false });
+                STATE.resultsCount = 0;
+                aResCount.textContent = '';
+            } else {
+                idsList = await select_leaf(text);
+            }
 
-        let idsList
-        if (!text.length) {
-            idsList = await nozomi_load({ fetchAll: false });
-            STATE.resultsCount = 0
-            aResCount.text = ''
+            idsObj = await filter_contents(idsList);
+            galleriesList = await fetch_gallery(Object.keys(idsObj).reverse());
+
+            if (galleriesList.length > 0) break;
+
+            trial++; STATE.indexObj = {};
+            console.warn(`Retry attempt: ${trial}`);
+            await new Promise(resolve => setTimeout(resolve, CONFIG.debounceTime));
         }
-        else idsList = await select_leaf(text)
 
-        const galleriesList = await fetch_gallery(idsList); // STATE.fetchCount
+        if (galleriesList.length === 0) {
+            alert("error: data not found");
+            return;
+        }
 
-        const idsObj = await filter_contents(idsList)
-
-        const promises = []
         const fragment = document.createDocumentFragment();
-        galleriesList.forEach(gallery => {
-            promises.push(generate_card(gallery, idsObj, fragment))
-        });
-        if (STATE.resultsCount) aResCount.textContent = `${String(STATE.resultsCount)} Results`
+        const promises = galleriesList.map(gallery => generate_card(gallery, idsObj, fragment));
+        
+        if (STATE.resultsCount) {
+            aResCount.textContent = `${String(STATE.resultsCount)} Results`;
+        }
 
-        await Promise.allSettled(promises);
+        await Promise.all(promises);
         divCardC.appendChild(fragment);
+
         STATE.fetching = false
+        STATE.trial = 0
     }
 
-    function tag_listener(divSearchInput, actualInput, divSearchC, divSuggestionC, saveButton, isDefaultQuery = false) {
+    function search_tag_listener(divSearchInput, actualInput, divSearchC, divSuggestionC, saveButton, isDefaultQuery = false) {
         divSearchInput.addEventListener('click', function(event) {
             if (event.target.closest('.bi-x-circle-fill')) {
                 event.target.closest('.TagContainer').remove();
@@ -988,8 +1006,8 @@
     function search_listener(searchButton, divSearchInput, divSuggestionC, actualInput, aResCount, divCardC) {
         let isFocust;
         searchButton.addEventListener('click', async function() {
-            const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
-            await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
+            search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
+            await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
         });
         divSearchInput.addEventListener('keydown', async function(e) {
             if (e.key !== 'Enter') return
@@ -1001,8 +1019,7 @@
             }
 
             if (!isFocust) {
-                const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
-                await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
+                searchButton.click()
             }
             isFocust = false;
         })
@@ -1106,8 +1123,8 @@
                     const tagList = tagText.split(/:/)
                     tag_to_badge(tagList[0], tagList[1], divSearchInput, actualInput, false)
                     if (!CONFIG.incrementTag) {
-                        const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
-                        await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
+                        search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
+                        await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
                     }
                     return;
                 }
@@ -1128,8 +1145,8 @@
                     const typeList = typeText.split(/:/)
                     tag_to_badge(typeList[0], typeList[1], divSearchInput, actualInput, false)
                     if (!CONFIG.incrementTag) {
-                        const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed, STATE.term
-                        await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
+                        search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
+                        await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
                     }
                     return;
                 }
@@ -1203,92 +1220,145 @@
     }
 
     function suggestion_listener(actualInput, divSuggestionC, divSearchC, divSearchInput) {
+        let requestCounter = 0;
+
         actualInput.addEventListener('input', debounce(async function() {
             divSuggestionC.textContent = "";
             const text = actualInput.value;
 
+            const currentRequestId = ++requestCounter;
+
             await get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput, actualInput);
+
+            if (currentRequestId !== requestCounter) return;
+
             if (divSuggestionC.children.length > 0) {
                 divSuggestionC.style.display = 'block';
             } else {
                 divSuggestionC.style.display = 'none';
             }
+
         }, CONFIG.debounceTime));
     }
 
+
+
     function pic_preview_listener(pic, id, idsObj) {
-        //url_from_hash
-        function hash_to_url(image, dir = 'avif') {
-            function subdomain_from_url(url) {
-                let sub = 'a';
+        function get_hitomi_url(galleryid, image, dir, ext, base = "tn") {
+            ext = ext || dir || image.name.split('.').pop();
+            
+            let pathDir = '', fullPath = '', subdomain = '', url = '';
 
-                // if (!base) {
-                //     if (dir === 'webp') sub = 'w';
-                //     else if (dir === 'avif') sub = 'a';
-                // }
-
-                const m = /\/[0-9a-f]{61}([0-9a-f]{2})([0-9a-f])/.exec(url);
-                if (!m) return sub;
-
-                const g = parseInt(m[2] + m[1], 16);
-                if (Number.isNaN(g)) return sub;
-
-                const v = gg.m(g);
-                return sub + (v + 1);
-            }
-            function full_path_from_hash(hash) {
-                    return gg.b+gg.s(hash)+'/'+hash;
-            }
-
-            let url = '', subDomain = '', pathDir = '', ext = 'webp'
-
-            if (dir && dir !== 'webp' && dir !== 'avif') {
+            if (dir !== 'webp' && dir !== 'avif') {
                 pathDir = dir + '/';
             }
 
-            url = `https://a.gold-usergeneratedcontent.net/${pathDir}${full_path_from_hash(image.hash)}.${ext}`;
-            subDomain = subdomain_from_url(url)
+            if (base === 'tn') {
+                // if thumbnail use real_full_path_from_hash
+                fullPath = image.hash.replace(/^.*(..)(.)$/, '$2/$1/' + image.hash);
+            } else {
+                // full_path_from_hash
+                fullPath = STATE.gg.b + STATE.gg.s(image.hash) + '/' + image.hash;
+            }
 
-            return url.replace(/\/\/..?\.(?:gold-usergeneratedcontent\.net|hitomi\.la)\//, '//'+subDomain+'.'+"gold-usergeneratedcontent.net"+'/'); 
+            url = `https://a.${STATE.domain}/${base === 'tn' ? `${dir}/` : pathDir}${fullPath}.${ext}`;
+
+            if (!base) {
+                if (dir === 'webp') subdomain = 'w';
+                else if (dir === 'avif') subdomain = 'a';
+            }
+
+            const r = /\/[0-9a-f]{61}([0-9a-f]{2})([0-9a-f])/;
+            const m = r.exec(url);
+            if (m) {
+                const g = parseInt(m[2] + m[1], 16);
+                if (!isNaN(g)) {
+                    if (base) {
+                        subdomain = String.fromCharCode(97 + STATE.gg.m(g)) + base;
+                    } else {
+                        subdomain = subdomain + (1 + STATE.gg.m(g));
+                    }
+                }
+            }
+
+            return url.replace(/\/\/..?\.(?:gold-usergeneratedcontent\.net|hitomi\.la)\//, '//' + subdomain + '.' + STATE.domain + '/');
         }
 
-        if (!CONFIG.picPreview) return;
+        async function fetch_image(file, dir, ext) {
+            const url = get_hitomi_url(id, file, dir, ext);
+            const cacheKey = `${file.hash}_${dir}`;
 
-        let i = 1
+            if (CACHE.imageCache.has(cacheKey)) {
+                return CACHE.imageCache.get(cacheKey);
+            }
+
+            const fetchPromise = new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: "GET",
+                    url: url,
+                    responseType: "blob",
+                    headers: { "Referer": "https://hitomi.la" },
+                    onload: function (res) {
+                        const blobUrl = URL.createObjectURL(res.response);
+                        resolve(blobUrl);
+                    },
+                    onerror: reject
+                });
+            });
+
+            CACHE.imageCache.set(cacheKey, fetchPromise);
+
+            return fetchPromise;
+        }
+
+        async function updateDisplay(index) {
+            const file = files[index];
+            const srcImg = pic.querySelector('img');
+            const source = pic.querySelector('source');
+
+            const [webpUrl, avifUrl] = await Promise.all([
+                fetch_image(file, "webpsmallsmalltn", "webp"),
+                fetch_image(file, "avifsmalltn", "avif")
+            ]);
+
+            if (webpUrl) {
+                srcImg.src = webpUrl;
+            }
+            if (avifUrl) {
+                source.srcset = `${avifUrl} 1x, ${avifUrl} 2x`;
+            }
+
+            [1, -1].forEach(offset => {
+                const nextIdx = (index + offset + files.length) % files.length;
+                const nextFile = files[nextIdx];
+                fetch_image(nextFile, "webpsmallsmalltn", "webp");
+                fetch_image(nextFile, "avifsmalltn", "avif");
+            });
+        }
+
+        if (!idsObj[id].previewFiles) return;
+
+        let currentIndex = 0;
+        const files = idsObj[id].previewFiles;
+
         pic.addEventListener('click', (e) => {
             e.preventDefault();
-
             const rect = pic.getBoundingClientRect();
             const x = e.clientX - rect.left;
-            const halfWidth = rect.width / 2;
-
-            if (x < halfWidth) {
-                i--
-                i = i < 0 ? CONFIG.picPreviewPerPage-1 : i
-                console.log(idsObj[id].files[i])
-                let src = pic.querySelector('img')
-                let source = pic.querySelector('source')
-                src.setAttribute('src', hash_to_url(idsObj[id].files[i]));
-                src.setAttribute('data-src', hash_to_url(idsObj[id].files[i]));
-                source.setAttribute('srcset', hash_to_url(idsObj[id].files[i]));
-                source.setAttribute('data-srcset', hash_to_url(idsObj[id].files[i]));
+            
+            if (x < rect.width / 2) {
+                currentIndex = (currentIndex - 1 + files.length) % files.length;
             } else {
-                i++
-                i = i > CONFIG.picPreviewPerPage-1 ? 0 : i
-                console.log(idsObj[id].files[i])
-                let src = pic.querySelector('img')
-                let source = pic.querySelector('source')
-                src.setAttribute('src', hash_to_url(idsObj[id].files[i]));
-                src.setAttribute('data-src', hash_to_url(idsObj[id].files[i]));
-                source.setAttribute('srcset', hash_to_url(idsObj[id].files[i]));
-                source.setAttribute('data-srcset', hash_to_url(idsObj[id].files[i]));
+                currentIndex = (currentIndex + 1) % files.length;
             }
+            
+            updateDisplay(currentIndex);
         });
     }
 
     async function nozomi_load(options = {}) {
         const {
-            url = `//${STATE.domain}/index-all.nozomi`,
+            url = `//ltn.${STATE.domain}/index-all.nozomi`,
             step = CONFIG.galleriesPerPage * 4,
             fetchAll = true,
         } = options;
@@ -1303,16 +1373,38 @@
         }
     }
 
+    async function fetch_gg() {
+        const url = 'https://ltn.gold-usergeneratedcontent.net/gg.js';
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Network response was not ok');
+        
+        const rawText = await response.text();
+
+        const scriptBody = `
+            let gg; 
+            ${rawText.replace("'use strict';", "")} 
+            return gg;
+        `;
+
+        const extractGG = new Function(scriptBody);
+        STATE.gg = extractGG();
+    }
+
+    const CACHE = {
+        imageCache: new Map()
+    }
+
     const STORAGE = {
         defaultQueryValue: 'defaultQueryValue'
     }
 
     const CONFIG = {
-        fetchPageNum: false,
-        picPreview: true,
         infScroll: true,
         incrementTag: false,
+        fetchPageNum: false,
         minPage: 0,
+        maxPage: 0,
+        trialLimit: 5,
         galleriesPerPage: 25,
         debounceTime: 300,
         picPreviewPerPage: 5,
@@ -1323,19 +1415,16 @@
         fetching: false,
         fetchCount: 0,
         resultsCount: 0,
-        domain: 'ltn.gold-usergeneratedcontent.net',
+        trial: 0,
+        domain: "gold-usergeneratedcontent.net",
         orderBy: "",
         term: "",
         indexObj: {},
         randomUsed: new Set(),
+        gg: new Function()
     };
 
     document.documentElement.innerHTML = html;
-
-    window.gg = undefined;
-    const script = document.createElement('script');
-    script.src = 'https://ltn.gold-usergeneratedcontent.net/gg.js';
-    document.head.appendChild(script);
 
     const divSearchInput = document.querySelector('div.SearchInput');
     const divDefaultInput = document.querySelector('div.DefaultInput');
@@ -1354,14 +1443,15 @@
     const eyeText = document.querySelector("div.EyeContainer a")
     const buttonAdd = document.querySelector("button.BtnAdd")
     const buttonEx = document.querySelector("button.BtnExclude")
-
     const optionOrderByDropdown = document.querySelectorAll("#orderbydropdown option")
 
-    const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
-    await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
+    if (CONFIG.picPreviewPerPage >= 1) await fetch_gg()
 
-    tag_listener(divSearchInput, actualInput, divSearchC, divSuggestionC, DefaultSaveButton)
-    tag_listener(divDefaultInput, defaultActualInput, divDefaultSearchC, divDefaultSuggestionC, DefaultSaveButton, true)
+    // const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
+    await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+
+    search_tag_listener(divSearchInput, actualInput, divSearchC, divSuggestionC, DefaultSaveButton)
+    search_tag_listener(divDefaultInput, defaultActualInput, divDefaultSearchC, divDefaultSuggestionC, DefaultSaveButton, true)
     suggestion_listener(actualInput, divSuggestionC, divSearchC, divSearchInput)
     suggestion_listener(defaultActualInput, divDefaultSuggestionC, divDefaultSearchC, divDefaultInput)
     order_listener(optionOrderByDropdown) // STATE.orderBy
@@ -1387,9 +1477,13 @@
             const entry = entries[0];
 
             if (entry.isIntersecting && !STATE.fetching) {
-                const text = get_search_input_text(divSearchInput, actualInput, true) // STATE.fetchCount, STATE.randomUsed
-                await load(aResCount, divCardC, text) // STATE.fetching, STATE.resultsCount
+                observer.unobserve(entry.target);
+
+                await load(aResCount, divCardC);
+
+                observer.observe(entry.target);
             }
+
         }, {
             root: null,
             rootMargin: "0px 0px 300px 0px",
