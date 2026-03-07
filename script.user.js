@@ -1,12 +1,9 @@
 // ==UserScript==
-// @name         hitomi-enhanced-ltn
-// @namespace    Violentmonkey Scripts
-// @match        https://ltn.gold-usergeneratedcontent.net/favicon-192x192.png
-// @grant        GM_xmlhttpRequest
-// @require      https://raw.github.com/emn178/js-sha256/master/build/sha256.min.js
-// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
-// @version      0.0
 // @author       -
+// @name         hitomi-enhanced-ltn
+// @version      0.0
+// @match        https://hitomi.la/robots.txt
+// @require      https://raw.github.com/emn178/js-sha256/master/build/sha256.min.js
 // ==/UserScript==
 
 (async function() {
@@ -22,7 +19,7 @@
         <style>
             :root {--radius: 0.375rem; --white: rgb(211, 211, 211); --dimWhite: rgb(140, 140, 140); --grey: #6c757d; --blue: #0d6efd; --green: #28a745; --red: #dc3545; --btnGreen: #198754; --btnRed: #a13643;}
 
-            body {margin: 0; background-color: hsl(0, 0%, 13%);}
+            body {margin: 0; background-color: hsl(0, 0%, 16%);}
             table tr td a {display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all; color: var(--dimWhite); text-decoration: none;}
             strong {color: cyan;}
             span svg {color: var(--white); margin-right: 8px; cursor: pointer;}
@@ -33,18 +30,28 @@
             .BadgeBlue, .BadgeGreen, .BadgeGrey, .BadgeRed {border-radius: var(--radius); padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
             .BadgeBlue, .BadgeGreen, .BadgeRed {display: flex; align-items: center; white-space: nowrap;}
             .InputContainer, .NavbarContainer {display: flex; justify-content: space-between}
-            .DefaultQueryContainer, .PickerContainer, .SearchContainer {display: flex; justify-content: space-between; width: 100%;}
-            .DefaultInput, .SearchInput {width: 240px; overflow: auto; display: flex; background-color: hsl(0, 0%, 16%); border: 1px solid hsl(0, 0%, 25%); border-radius: var(--radius); color: var(--white);}
+            .PickerContainer, .InputContainer {display: flex; justify-content: space-between; width: 100%;}
+            .SearchInput {
+                display: flex;
+                width: 100%;
+                overflow: auto;
+                background-color: hsl(0, 0%, 16%);
+                border: 1px solid hsl(0, 0%, 25%);
+                border-radius: var(--radius);
+                color: var(--white);
+                height: 40px;
+            }
 
-            .NavbarContainer a {margin: auto auto auto 10px;}
-            .InputContainer button {margin-right: 5px; white-space: nowrap; overflow: hidden;}
+            .Suggestion:hover, .SuggestionFocus {background-color: hsl(0, 0%, 10%); cursor: pointer;}
+
             .CardTableContainer table {color: var(--dimWhite);}
             .CardTagsContainer a {margin-right: 5%; text-decoration: none; color: var(--white);}
-            .Card img {width: 100%; height: 220px; object-fit: cover; border-radius: var(--radius);}
+            .Card img {width: 100%; height: 220px; object-fit: cover; border-radius: var(--radius); filter: brightness(0);}
             .EyeContainer a {white-space: nowrap; display: none;}
+            .NavbarContainer a img {width: 80%;}
+            .Setting label {color: var(--white);}
 
-            input:focus {background-color: transparent; border: none; outline: none;}
-            .Suggestion:hover {background-color: hsl(0, 0%, 10%); cursor: pointer;}
+            input:focus {border: none; outline: none;}
             .BtnGreenOut:hover {background-color: var(--btnGreen);}
 
             .BtnGreenOut {color: var(--btnGreen); background-color: transparent; border: 1px solid var(--btnGreen);}
@@ -57,11 +64,24 @@
             .BadgeRed {background-color: var(--red);}
 
             .Container {display: flex; flex-direction: column; justify-content: center;}
-            .NavbarContainer {flex-direction: row; width: 100%; height: 100px; background-color: hsl(0, 0%, 19%);}
-            .InputContainer {flex-direction: column;}
-            .SearchContainer {flex: 1; flex-direction: row; margin-top: 7px;}
-            .DefaultQueryContainer {flex: 1; flex-direction: row; margin: 3px 0 7px 0;}
-            .PickerContainer {align-items: center; height: 35px; background-color: hsl(0, 0%, 16%); position: sticky; top: 0;}
+            .NavbarContainer {
+              display: flex;
+              flex-direction: row;
+              width: 100%;
+              height: 50px;
+              background-color: hsl(0, 0%, 19%);
+              align-items: center;
+              justify-content: space-between;
+              padding: 0px 15px 0px 10px;
+              box-sizing: border-box;
+              gap: 20px;
+              position: sticky;
+              top: 0;
+              z-index: 1;
+            }
+
+            .InputContainer {flex: 1; flex-direction: row;}
+            .PickerContainer {align-items: center; height: 35px;}
             .BtnContainer {display: flex; height: 100%;}
             .BtnContainer button{width: 40px;}
             .CardContainer {display: flex; flex-wrap: wrap; justify-content: space-around; color: var(--white); background-color: hsl(0, 0%, 10%); border-radius: var(--radius); gap: 20px; margin: 10px;}
@@ -72,14 +92,53 @@
             .EyeContainer {display: flex; background-color: transparent; border-radius: var(--radius); padding: 5px; gap: 5px;}
             .InfoContainer {display: flex; justify-content: space-between; flex-direction: row-reverse; padding: 20px; align-items: center;}
             .TagContainer {display: flex; align-items: center;}
-            .ContentContainer {background-color: hsl(0, 0%, 10%); margin: 3% 3% auto 3%; border-radius: var(--radius); overflow: hidden;}
+            .ContentContainer {background-color: hsl(0, 0%, 13%); margin: 3% 3% auto 3%; border-radius: var(--radius); overflow: hidden;}
             .BottomContainer {display: -webkit-box;}
+            .MastheadContainer {display: flex; align-items: center; gap: 10px;}
+
+            .Sidebar {display: flex; flex-direction: column; position: fixed; top: 0; left: -260px; width: 240px; height: 100%; background-color: hsl(0, 0%, 10%); z-index: 2; transition: left 0.3s ease; border-right: 1px solid hsl(0, 0%, 15%); padding: 10px;}
+            .Sidebar.active {left: 0; box-shadow: 5px 0 15px rgba(0,0,0,0.5);}
+            .SidebarOverlay {position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); display: none; z-index: 1;}
+            .SidebarOverlay.active {display: block;}
+
+            .SearchFloatingWindow {
+                position: fixed;
+                top: 50px;
+                width: 310px;
+                background-color: hsl(0, 0%, 19%);
+                border: 1px solid hsl(0, 0%, 25%);
+                border-radius: var(--radius);
+                padding: 5px;
+                z-index: 1;
+                visibility: hidden;
+                opacity: 0;
+                transform: translateY(-20px);
+                transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), visibility 0.3s;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+                right: 10px;
+            }
+
+            .SearchFloatingWindow.active {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                opacity: 1;
+                visibility: visible;
+                transform: translateY(0);
+            }
 
             .eye {margin-left: 1%;}
             .CardTitle {font-weight: bold; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all; color: var(--white);}
             .page {width: fit-content;}
             .Card {display: flex; flex-direction: column; flex: 1 1 190px; max-width: 220px; background-color: hsl(0, 0%, 14%); overflow: hidden; justify-content: space-between; border-radius: var(--radius); border:1px solid hsl(0, 0%, 19%); padding: 5px; gap: 10px;}
             .Suggestion {display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid hsl(0, 0%, 18%);}
+            .bi-list {color: var(--dimWhite); width: 32px; height: 32px; cursor: pointer;}
+            .search-icon {width: 32px; cursor: pointer; fill: hsl(0, 0%, 25%);}
+            .Setting {display: flex; flex-direction: column; gap: 10px; margin-top: 100px;}
+
+            #SearchButton {height: 40px;}
+            #SaveButton {margin-left: 5px; white-space: nowrap;}
+            
             .SuggestionText {flex: 1; overflow: hidden; text-overflow: ellipsis;}
             .SuggestionArea {color: var(--dimWhite);}
 
@@ -91,28 +150,56 @@
         </style>
     </head>
     <body>
-        <div class="Container">
-            <div class="NavbarContainer">
-                <a href="https://ltn.gold-usergeneratedcontent.net/favicon-192x192.png">
+        <div class="SidebarOverlay"></div>
+        <div class="Sidebar">
+            <div class="MastheadContainer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" id="bi-list-close" class="bi bi-list" viewBox="0 0 16 16">
+                  <path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5"/>
+                </svg>
+                <a href="//hitomi.la/robots.txt">
                     <img src="//ltn.gold-usergeneratedcontent.net/logo.png"></img>
                 </a>
-                <div class="InputContainer">
-                    <div class="SearchContainer">
-                        <div class="SearchInput">
-                            <input class="ActualInput" type="text">
-                        </div>
-                        <button class="BtnGreenOut" type="button">Search</button>
-                        <div class="SuggestionContainer"></div>
-                    </div>
-                    <div class="DefaultQueryContainer">
-                        <div class="DefaultInput">
-                            <input class="ActualInput" type="text">
-                        </div>
-                        <button class="BtnGreenOut" type="button">Save</button>
-                        <div class="SuggestionContainer"></div>
-                    </div>
-                </div>
             </div>
+
+            <form class="Setting">
+                <label><input type="checkbox" id="infScroll"> infScroll</label>
+                <label><input type="checkbox" id="incrementTag"> incrementTag</label>
+                <label><input type="checkbox" id="fetchPageNum"> fetchPageNum</label>
+
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="minPage" placeholder="minPage">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="maxPage" placeholder="maxPage">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="trialLimit" placeholder="trialLimit">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="galleriesPerPage" placeholder="galleriesPerPage">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="debounceTime" placeholder="debounceTime">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="picPreviewPerPage" placeholder="picPreviewPerPage">
+
+                <input class="SearchInput" type="text" id="defaultQuery" placeholder="defaultQuery">
+            </form>
+        </div>
+        <div class="SearchFloatingWindow">
+            <div id="Search" class="InputContainer">
+                <div id="Search" class="SearchInput">
+                    <input id="Search"class="ActualInput" type="text">
+                </div>
+                <div id="Search" class="SuggestionContainer"></div>
+            </div>
+            <div id="Default"class="InputContainer">
+                <div id="Default" class="SearchInput">
+                    <input id="Default" class="ActualInput" type="text">
+                </div>
+                <button class="BtnGreenOut" id="SaveButton" type="button">Save</button>
+                <div id="Default"class="SuggestionContainer"></div>
+            </div>
+            <select id="orderbydropdown">
+                <option value="">Order by:</option>
+                <option value="date_added">Date Added</option>
+                <option value="published">Date Published</option>
+                <option value="today">Popular: Today</option>
+                <option value="week">Popular: Week</option>
+                <option value="month">Popular: Month</option>
+                <option value="year">Popular: Year</option>
+                <option value="random">Random</option>
+            </select>
             <div class="PickerContainer">
                 <div class="EyeContainer">
                     <a>select tag or type</a>
@@ -133,18 +220,27 @@
                     </button>
                 </div>
             </div>
+            <button class="BtnGreenOut" id="SearchButton" type="button">Search</button>
+        </div>
+        <div class="Container">
+            <div class="NavbarContainer">
+                <div class="MastheadContainer">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" id="bi-list-open" class="bi bi-list" viewBox="0 0 16 16">
+                      <path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5"/>
+                    </svg>
+                    <a href="//hitomi.la/robots.txt">
+                        <img src="//ltn.gold-usergeneratedcontent.net/logo.png"></img>
+                    </a>
+                </div>
+                <svg class="search-icon" viewBox="-2.4 -2.4 28.80 28.80" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="14" class="search-bg" />
+                    <g fill="currentColor">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M4 11C4 7.13401 7.13401 4 11 4C14.866 4 18 7.13401 18 11C18 14.866 14.866 18 11 18C7.13401 18 4 14.866 4 11ZM11 2C6.02944 2 2 6.02944 2 11C2 15.9706 6.02944 20 11 20C13.125 20 15.078 19.2635 16.6177 18.0319L20.2929 21.7071C20.6834 22.0976 21.3166 22.0976 21.7071 21.7071C22.0976 21.3166 22.0976 20.6834 21.7071 20.2929L18.0319 16.6177C19.2635 15.078 20 13.125 20 11C20 6.02944 15.9706 2 11 2Z"></path>
+                    </g>
+                </svg>
+            </div>
             <div class="ContentContainer">
                 <div class="InfoContainer">
-                    <select id="orderbydropdown">
-                        <option value="">Order by:</option>
-                        <option value="date_added">Date Added</option>
-                        <option value="published">Date Published</option>
-                        <option value="today">Popular: Today</option>
-                        <option value="week">Popular: Week</option>
-                        <option value="month">Popular: Month</option>
-                        <option value="year">Popular: Year</option>
-                        <option value="random">Random</option>
-                    </select>
                     <a class="ResultsCount"></a>
                 </div>
                 <div class="CardContainer"></div>
@@ -154,7 +250,6 @@
     </body>
     </html>
     `;
-
 
     function get_ids(totalBytes, view) {
         const idsList = []
@@ -285,14 +380,14 @@
         return galleriesList;
     }
 
-    function generate_card(gallery, idsObj, divCardC) {
+    function generate_card(gallery, idsObj, divCardC, divSearchInput, actualInput, searchButton) {
         return new Promise((resolve) => {
             function create_table(type, listOrItem, container, defaultText = 'N/A') {
                 const isList = Array.isArray(listOrItem) || listOrItem instanceof NodeList;
                 const list = isList ? Array.from(listOrItem) : [listOrItem];
 
                 const text = list.length ? list[0].textContent : defaultText;
-                const href = list.length ? list[0].href.replace(`https://ltn.${STATE.domain}`, "") : "/index-japanese.html";
+                const href = list.length ? list[0].href : "";
 
                 container.insertAdjacentHTML(
                   'beforeend',
@@ -301,7 +396,7 @@
 
             };
 
-            function generate_tags(tags, container) {
+            function generate_tags(tags, container, divSearchInput, actualInput, searchButton) {
                 if (tags.length === 0) {
                     const aTag = document.createElement('a');
                     aTag.className = 'BadgeBlue';
@@ -311,6 +406,8 @@
                     Array.from(tags).forEach(tag => {
                         const clone = tag.cloneNode(true);
                         if (clone.textContent === '...') return;
+
+                        tag_listener(tag, divSearchInput, actualInput, searchButton)
 
                         clone.className = 'BadgeBlue';
                         container.appendChild(clone);
@@ -325,7 +422,7 @@
             const h1Element = doc.querySelector('h1.lillie a');
             const url = h1Element?.href || '#'
             const title = h1Element?.textContent || 'Unknown'
-            const pic = doc.querySelector('div[class$="-img1"] picture')
+            const picture = doc.querySelector('div[class$="-img1"] picture')
             const tags = doc.querySelectorAll('td.relatedtags ul li a')
             const seriesList = doc.querySelectorAll('td.series-list ul li a')
             const language = doc.querySelector('table.dj-desc tbody tr:nth-child(3) td a') || { textContent: 'Unknown', href: '#' }
@@ -355,13 +452,26 @@
             const divbottomC = document.createElement("div")
             divbottomC.className = "BottomContainer"
 
+            const img = document.createElement("img")
+            const dpr = window.devicePixelRatio
+            if (STATE.avif) {
+                let urls = picture.querySelector("source").getAttribute("data-srcset").split(",")
+                urls = urls.filter(x => x.endsWith(`${dpr}x`))
+                img.src = urls[0].replace(` ${dpr}x`, "")
+            } else {
+                const urls = picture.querySelector("source").getAttribute("data-src").split(",")
+                urls = urls.filter(x => x.endsWith(`${dpr}x`))
+                img.src = urls[0].replace(` ${dpr}x`, "")
+            }
+            img.loading = "lazy"
+
             const aPic = document.createElement("a")
-            aPic.href = url.replace("ltn.gold-usergeneratedcontent.net", "hitomi.la")
+            aPic.href = url
             aPic.target = "_blank"
 
             pic_preview_listener(aPic, id, idsObj)
 
-            aPic.appendChild(pic)
+            aPic.appendChild(img)
             divCard.appendChild(aPic)
             divCardC.appendChild(divCard)
             divCard.appendChild(aCardTitle)
@@ -377,7 +487,7 @@
             create_table("artist", artistList, table)
             create_table('series', seriesList, table)
             aPage.textContent = idsObj[id].num ? `${idsObj[id].num}p` : "N/A"
-            generate_tags(tags, divTagC)
+            generate_tags(tags, divTagC, divSearchInput, actualInput, searchButton)
             resolve()
         })
     };
@@ -645,7 +755,7 @@
         divContainer.insertBefore(divTagC, actualInput);
     }
 
-    async function get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput, actualInput) {
+    async function get_search_suggestion(text, divSuggestionC, divSearchInput, actualInput) {
         async function return_json(query, checkValid = false) {
             let field = 'global', term = ubar2space(query), istag = false, jsonSuggestions = []
             if (query.includes(':')) {
@@ -677,6 +787,39 @@
             }
             return jsonSuggestions
         }
+
+        function arrow_process(e) {
+            function apply_focus_class() {
+                suggestionsArray.forEach(a => a.classList.remove('SuggestionFocus'));
+                suggestionsArray[suggestionIndex].classList.add('SuggestionFocus');
+            };
+
+            const suggestionsArray = Array.from(divSuggestionC.querySelectorAll('a'));
+            const max = suggestionsArray.length - 1;
+            if (suggestionsArray.length === 0) return;
+
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (suggestionIndex <= 0) suggestionIndex = max;
+                else suggestionIndex--;
+                apply_focus_class();
+            }
+
+            else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (suggestionIndex >= max) suggestionIndex = 0;
+                else suggestionIndex++;
+                apply_focus_class();
+            }
+
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (suggestionIndex >= 0 && suggestionIndex < suggestionsArray.length) {
+                    suggestionsArray[suggestionIndex].click();
+                    suggestionIndex = -1
+                }
+            }
+        };
 
         const inputList = text.split(/\s+/)
         let newInputList = [], negList = [], posList = [], isNegative = false
@@ -744,43 +887,10 @@
                 suggestionIndex = -1
             });
         })
-        const rect = divSearchC.getBoundingClientRect();
-        divSuggestionC.style.left = rect.left + 'px';
-        divSuggestionC.style.top = rect.height + rect.top + 'px';
+        const rect = divSearchInput.getBoundingClientRect();
+        divSuggestionC.style.top = rect.top - 7 + 'px';
         divSuggestionC.style.width = rect.width + 'px';
 
-        function arrow_process(e) {
-            function apply_focus_class() {
-                suggestionsArray.forEach(a => a.classList.remove('SuggestionFocus'));
-                suggestionsArray[suggestionIndex].classList.add('SuggestionFocus');
-            };
-
-            const suggestionsArray = Array.from(divSuggestionC.querySelectorAll('a'));
-            const max = suggestionsArray.length - 1;
-            if (suggestionsArray.length === 0) return;
-
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                if (suggestionIndex <= 0) suggestionIndex = max;
-                else suggestionIndex--;
-                apply_focus_class();
-            }
-
-            else if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                if (suggestionIndex >= max) suggestionIndex = 0;
-                else suggestionIndex++;
-                apply_focus_class();
-            }
-
-            else if (e.key === 'Enter') {
-                e.preventDefault();
-                if (suggestionIndex >= 0 && suggestionIndex < suggestionsArray.length) {
-                    suggestionsArray[suggestionIndex].click();
-                    suggestionIndex = -1
-                }
-            }
-        };
         divSearchInput.removeEventListener('keydown', arrow_process)
         divSearchInput.addEventListener('keydown', arrow_process)
     }
@@ -820,7 +930,7 @@
         STATE.term = get_search_input_text(divSearchInput, actualInput, true)
     }
 
-    async function load(aResCount, divCardC, text = STATE.term) {
+    async function load(aResCount, divCardC, text = STATE.term, divSearchInput, actualInput, searchButton) {
         STATE.fetching = true;
         if (STATE.fetchCount === 0) divCardC.innerHTML = "";
 
@@ -851,7 +961,7 @@
         }
 
         const fragment = document.createDocumentFragment();
-        const promises = galleriesList.map(gallery => generate_card(gallery, idsObj, fragment));
+        const promises = galleriesList.map(gallery => generate_card(gallery, idsObj, fragment, divSearchInput, actualInput, searchButton));
         
         if (STATE.resultsCount) {
             aResCount.textContent = `${String(STATE.resultsCount)} Results`;
@@ -864,7 +974,7 @@
         STATE.trial = 0
     }
 
-    function search_tag_listener(divSearchInput, actualInput, divSearchC, divSuggestionC, saveButton, isDefaultQuery = false) {
+    function search_tag_listener(divSearchInput, actualInput, divInputC, divSuggestionC, saveButton, isDefaultQuery = false) {
         divSearchInput.addEventListener('click', function(event) {
             if (event.target.closest('.bi-x-circle-fill')) {
                 event.target.closest('.TagContainer').remove();
@@ -876,7 +986,7 @@
         });
 
         document.addEventListener('click', function(event) {
-            const isClickInsideSearch = divSearchC.contains(event.target);
+            const isClickInsideSearch = divInputC.contains(event.target);
             const isClickInsideSuggestions = divSuggestionC.contains(event.target);
 
             if (!isClickInsideSearch && !isClickInsideSuggestions) {
@@ -1007,7 +1117,7 @@
         let isFocust;
         searchButton.addEventListener('click', async function() {
             search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
-            await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+            await load(aResCount, divCardC, divSearchInput, actualInput, searchButton) // STATE.fetching, STATE.resultsCount
         });
         divSearchInput.addEventListener('keydown', async function(e) {
             if (e.key !== 'Enter') return
@@ -1044,40 +1154,34 @@
             }, 1000);
         }
         CONFIG.defaultQuery = `${text} `
-        localStorage.setItem(STORAGE.defaultQueryValue, `${text} `)
+        localStorage.setItem(STORAGE.defaultQueryKey, `${text} `)
         temp_ui_update(saveButton)
     }
 
-    function picker_listener(eye, add, ex, divDefaultInput, defaultActualInput, divSearchInput, actualInput, aResCount, divCardC, eyeText, eyeContainer, saveButton) {
-        function extract_tag(href) {
-            const match = href.match(/\/tag\/(.*)-all.html/) || href.match(/.*%20(.*)/);
-            return encode_query(decodeURIComponent(match[1]));
+    function extract_tag(href) {
+        const match = href.match(/\/tag\/(.*)-all.html/) || href.match(/.*%20(.*)/);
+        return encode_query(decodeURIComponent(match[1]));
+    }
+
+    function extract_table(a) {
+        let match;
+        const hrefValue = a.getAttribute('href');
+
+        match = hrefValue.match(/.*\/index-(.*)\.html$/); // eg, language:japanese
+        if (match) {
+            return 'language:' + match[1];
         }
 
-        function extract_table(a) {
-            let match;
-            const hrefValue = a.getAttribute('href');
-
-            match = hrefValue.match(/^\/index-(.*)\.html$/);
-            if (match) {
-                return 'language:' + match[1];
-            }
-
-            match = hrefValue.match(/^\/(.*)\/(.*)-all\.html$/);
-            if (match) {
-                return match[1] + ':' + encode_query(decodeURIComponent(match[2]));
-            }
-            //
-            // match = hrefValue.match(/.* (.*)/);
-            // if (match) {
-            //     return match[1];
-            // }
-
-            console.log('No match found for href:', hrefValue);
-            return null;
+        match = hrefValue.match(/.*\/(.*)\/(.*)-all\.html$/); // eg, doujinshi:blue_archive
+        if (match) {
+            return match[1] + ':' + encode_query(decodeURIComponent(match[2]));
         }
+        console.log('No match found for href:', hrefValue);
+        return null;
+    }
 
-        let isPickerActive = false;
+    function picker_listener(eye, add, ex, divDefaultInput, defaultActualInput, eyeText, eyeContainer, saveButton) {
+        STATE.isPickerActive = false;
         let selectedTag = [];
         let selectedType = [];
 
@@ -1092,134 +1196,111 @@
         })
 
         eyeContainer.addEventListener('click', () => {
-            isPickerActive = !isPickerActive;
-            if (isPickerActive) {
+            if (STATE.isPickerActive) {
+                eyeContainer.style.backgroundColor = 'transparent';
+                eyeText.style.display = 'none';
+                eye.style.fill = 'white';
+            } else {
                 eyeContainer.style.backgroundColor = 'yellow';
                 eyeText.style.display = 'block';
                 eyeText.style.color = 'black';
                 eye.style.fill = 'black';
-            } else {
-                eyeContainer.style.backgroundColor = 'transparent';
-                eyeText.style.display = 'none';
-                eye.style.fill = 'white';
             }
 
-            add.disabled = !isPickerActive;
-            ex.disabled = !isPickerActive;
-
-            // if (!isPickerActive && (selectedTag || selectedType)) {
-            //     if (selectedTag) selectedTag.style.border = ""
-            //     if (selectedType) selectedType.style.border = ""
-            //     selectedTag = null;
-            //     selectedType = null;
-            // }
+            if (STATE.isPickerActive) {
+                selectedTag.forEach(tag => {
+                    tag.style.border = ""
+                })
+                selectedType.forEach(type => {
+                    type.style.border = ""
+                })
+                selectedTag = []; selectedType = [];
+            }
+            STATE.isPickerActive = !STATE.isPickerActive;
         })
+
         document.addEventListener('click', async (e) => {
+            if (!STATE.isPickerActive) return
+
             const tag = e.target.closest('.BadgeBlue');
             if (tag) {
                 e.preventDefault();
-                if (!isPickerActive) {
-                    const tagText = extract_tag(tag.href);
-                    const tagList = tagText.split(/:/)
-                    tag_to_badge(tagList[0], tagList[1], divSearchInput, actualInput, false)
-                    if (!CONFIG.incrementTag) {
-                        search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
-                        await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
-                    }
-                    return;
-                }
-                const color = tag.style.border
-                if (color === "") {
+                if (tag.style.border === "") {
                     tag.style.border = "solid yellow"
                     selectedTag.push(tag)
                 }
-                else tag.style.border = ""
+                else if (tag.style.border === "solid yellow") {
+                    tag.style.border = ""
+                    selectedTag = selectedTag.filter(item => item !== tag);
+                }
             }
         });
         document.addEventListener('click', async (e) => {
+            if (!STATE.isPickerActive) return
+
             const type = e.target.closest('table tr td a');
             if (type) {
                 e.preventDefault();
-                if (!isPickerActive) {
-                    const typeText = extract_table(type);
-                    const typeList = typeText.split(/:/)
-                    tag_to_badge(typeList[0], typeList[1], divSearchInput, actualInput, false)
-                    if (!CONFIG.incrementTag) {
-                        search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
-                        await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
-                    }
-                    return;
-                }
-                const color = type.style.border
-                if (color === "") {
+                if (type.style.border === "") {
                     type.style.border = "solid yellow"
                     selectedType.push(type)
                 }
-                else type.style.border = ""
-            }
-        });
-        add.addEventListener('click', () => {
-            if (selectedTag) {
-                selectedTag.forEach(tag => {
-                    const tagText = extract_tag(tag.href);
-                    if (!CONFIG.defaultQuery.includes(tagText)) {
-                        CONFIG.defaultQuery += CONFIG.defaultQuery ? ` ${tagText}` : tagText;
-                        const tagList = tagText.split(/:/)
-                        tag_to_badge(tagList[0], tagList[1], divDefaultInput, defaultActualInput, false)
-                        // localStorage.setItem('hitomiDefaultQuery', CONFIG.defaultQuery);
-                        // updateDefaultQueryUI();
-                    }
-                    tag.style.border = ""
-                })
-                save_to_localstorage(saveButton, CONFIG.defaultQuery) // CONFIG.defaultQuery
-            } 
-            if (selectedType) {
-                selectedType.forEach(type => {
-                    const typeText = extract_table(type);
-                    if (!CONFIG.defaultQuery.includes(typeText)) {
-                        CONFIG.defaultQuery += CONFIG.defaultQuery ? ` ${typeText}` : typeText;
-                        const typeList = typeText.split(/:/)
-                        tag_to_badge(typeList[0], typeList[1], divDefaultInput, defaultActualInput, false)
-                    }
+                else if (type.style.border === "solid yellow") {
                     type.style.border = ""
-                })
-                save_to_localstorage(saveButton, CONFIG.defaultQuery) // CONFIG.defaultQuery
+                    selectedType = selectedType.filter(item => item !== type);
+                }
             }
         });
 
+        add.addEventListener('click', () => {
+            if (selectedTag.length) {
+                selectedTag.forEach(tag => {
+                    const tagText = extract_tag(tag.href);
+                    if (!CONFIG.defaultQuery.includes(tagText)) {
+                        const tagList = tagText.split(/:/)
+                        tag_to_badge(tagList[0], tagList[1], divDefaultInput, defaultActualInput, false)
+                    }
+                })
+                saveButton.click()
+            } 
+            if (selectedType.length) {
+                selectedType.forEach(type => {
+                    const typeText = extract_table(type);
+                    if (!CONFIG.defaultQuery.includes(typeText)) {
+                        const typeList = typeText.split(/:/)
+                        tag_to_badge(typeList[0], typeList[1], divDefaultInput, defaultActualInput, false)
+                    }
+                })
+                saveButton.click()
+            }
+        });
         ex.addEventListener('click', () => {
             if (selectedTag) {
                 selectedTag.forEach(tag => {
                     const tagText = extract_tag(tag.href);
                     const excludeText = `-${tagText}`;
                     if (!CONFIG.defaultQuery.includes(excludeText)) {
-                        CONFIG.defaultQuery += CONFIG.defaultQuery ? ` ${excludeText}` : excludeText;
                         const tagList = tagText.split(/:/)
                         tag_to_badge(tagList[0], tagList[1], divDefaultInput, defaultActualInput, true)
-                        // localStorage.setItem('hitomiDefaultQuery', CONFIG.defaultQuery);
-                        // updateDefaultQueryUI();
                     }
-                    tag.style.border = ""
                 })
-                save_to_localstorage(saveButton, CONFIG.defaultQuery) // CONFIG.defaultQuery
+                saveButton.click()
             } 
             if (selectedType) {
                 selectedType.forEach(type => {
                     const typeText = extract_table(type);
                     const excludeText = `-${typeText}`;
                     if (!CONFIG.defaultQuery.includes(excludeText)) {
-                        CONFIG.defaultQuery += CONFIG.defaultQuery ? ` ${excludeText}` : excludeText;
                         const typeList = typeText.split(/:/)
                         tag_to_badge(typeList[0], typeList[1], divDefaultInput, defaultActualInput, true)
                     }
-                    type.style.border = ""
                 })
-                save_to_localstorage(saveButton, CONFIG.defaultQuery) // CONFIG.defaultQuery
+                saveButton.click()
             }
         });
     }
 
-    function suggestion_listener(actualInput, divSuggestionC, divSearchC, divSearchInput) {
+    function suggestion_listener(actualInput, divSuggestionC, divSearchInput) {
         let requestCounter = 0;
 
         actualInput.addEventListener('input', debounce(async function() {
@@ -1228,7 +1309,7 @@
 
             const currentRequestId = ++requestCounter;
 
-            await get_search_suggestion(text, divSuggestionC, divSearchC, divSearchInput, actualInput);
+            await get_search_suggestion(text, divSuggestionC, divSearchInput, actualInput);
 
             if (currentRequestId !== requestCounter) return;
 
@@ -1241,10 +1322,8 @@
         }, CONFIG.debounceTime));
     }
 
-
-
     function pic_preview_listener(pic, id, idsObj) {
-        function get_hitomi_url(galleryid, image, dir, ext, base = "tn") {
+        function get_hitomi_url(image, dir, ext, base = "tn") {
             ext = ext || dir || image.name.split('.').pop();
             
             let pathDir = '', fullPath = '', subdomain = '', url = '';
@@ -1284,57 +1363,42 @@
             return url.replace(/\/\/..?\.(?:gold-usergeneratedcontent\.net|hitomi\.la)\//, '//' + subdomain + '.' + STATE.domain + '/');
         }
 
-        async function fetch_image(file, dir, ext) {
-            const url = get_hitomi_url(id, file, dir, ext);
-            const cacheKey = `${file.hash}_${dir}`;
+        async function updateDisplay(index, pic) {
 
-            if (CACHE.imageCache.has(cacheKey)) {
-                return CACHE.imageCache.get(cacheKey);
+            if (!files || files.length === 0) return;
+            if (index < 0 || index >= files.length) return;
+
+            function prefetchImage(url) {
+                if (!url) return;
+                const img = new Image();
+                img.decoding = "async";
+                img.loading = "eager";
+                img.src = url;
             }
 
-            const fetchPromise = new Promise((resolve, reject) => {
-                GM_xmlhttpRequest({
-                    method: "GET",
-                    url: url,
-                    responseType: "blob",
-                    headers: { "Referer": "https://hitomi.la" },
-                    onload: function (res) {
-                        const blobUrl = URL.createObjectURL(res.response);
-                        resolve(blobUrl);
-                    },
-                    onerror: reject
-                });
-            });
+            function get_proper_size_pic(file) {
+                if (!file) return null;
+                const format = STATE.avif ? "avif" : "webp";
+                const dir = STATE.avif ? "avifsmalltn" : "webpsmalltn";
+                return get_hitomi_url(file, dir, format);
+            }
 
-            CACHE.imageCache.set(cacheKey, fetchPromise);
-
-            return fetchPromise;
-        }
-
-        async function updateDisplay(index) {
             const file = files[index];
-            const srcImg = pic.querySelector('img');
-            const source = pic.querySelector('source');
+            const img = pic.querySelector("img");
 
-            const [webpUrl, avifUrl] = await Promise.all([
-                fetch_image(file, "webpsmallsmalltn", "webp"),
-                fetch_image(file, "avifsmalltn", "avif")
-            ]);
-
-            if (webpUrl) {
-                srcImg.src = webpUrl;
-            }
-            if (avifUrl) {
-                source.srcset = `${avifUrl} 1x, ${avifUrl} 2x`;
-            }
+            const url = get_proper_size_pic(file);
+            if (url) img.src = url;
 
             [1, -1].forEach(offset => {
-                const nextIdx = (index + offset + files.length) % files.length;
+                const nextIdx =
+                    (index + offset + files.length) % files.length;
+
                 const nextFile = files[nextIdx];
-                fetch_image(nextFile, "webpsmallsmalltn", "webp");
-                fetch_image(nextFile, "avifsmalltn", "avif");
+                const nextUrl = get_proper_size_pic(nextFile);
+                prefetchImage(nextUrl);
             });
         }
+
 
         if (!idsObj[id].previewFiles) return;
 
@@ -1352,8 +1416,52 @@
                 currentIndex = (currentIndex + 1) % files.length;
             }
             
-            updateDisplay(currentIndex);
+            updateDisplay(currentIndex, pic);
         });
+    }
+
+    function menu_and_search_listener(menuBtnOpen, sidebar, overlay, menuBtnClose, svgSearch, searchWindow) {
+        menuBtnOpen.addEventListener('click', () => {
+            sidebar.classList.add('active');
+            overlay.classList.add('active');
+        });
+
+        menuBtnClose.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        });
+
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        });
+
+        svgSearch.onclick = (e) => {
+            e.stopPropagation();
+            searchWindow.classList.toggle('active');
+        };
+
+        searchWindow.onclick = (e) => {
+            e.stopPropagation();
+        };
+
+
+        window.onclick = (e) => {
+            if (!searchWindow.contains(e.target) && !svgSearch.contains(e.target) && !STATE.isPickerActive) {
+                searchWindow.classList.remove('active');
+            }
+        };
+    }
+
+    function tag_listener(tag, divSearchInput, actualInput, searchButton) {
+        tag.addEventListener('click', async () => {
+            const tagText = extract_tag(tag.href);
+            const tagList = tagText.split(/:/)
+            tag_to_badge(tagList[0], tagList[1], divSearchInput, actualInput, false)
+            if (!CONFIG.incrementTag) {
+                searchButton.click()
+            }
+        })
     }
 
     async function nozomi_load(options = {}) {
@@ -1390,12 +1498,19 @@
         STATE.gg = extractGG();
     }
 
-    const CACHE = {
-        imageCache: new Map()
+    async function check_avif_support() {
+        try {
+            const img = new Image();
+            img.src = "data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADrbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAAAAAAAOcGl0bQAAAAAAAQAAAB5pbG9jAAAAAEQAAAEAAQAAAAEAAAETAAAAFwAAAChpaW5mAAAAAAABAAAAGmluZmUCAAAAAAEAAGF2MDFDb2xvcgAAAABqaXBycAAAAEtpcGNvAAAAFGlzcGUAAAAAAAAAAQAAAAEAAAAQcGl4aQAAAAADCAgIAAAADGF2MUOBAAwAAAAAE2NvbHJuY2x4AAEADQAGgAAAABdpcG1hAAAAAAAAAAEAAQQBAoMEAAAAH21kYXQSAAoFGAAGBCAyDBQAAwwwxAAAeUut9g==";
+            await img.decode();
+            STATE.avif = true;
+        } catch {
+            STATE.avif = false;
+        }
     }
 
     const STORAGE = {
-        defaultQueryValue: 'defaultQueryValue'
+        defaultQueryKey: 'defaultQueryValue'
     }
 
     const CONFIG = {
@@ -1408,11 +1523,13 @@
         galleriesPerPage: 25,
         debounceTime: 300,
         picPreviewPerPage: 5,
-        defaultQuery: localStorage.getItem(STORAGE.defaultQueryValue) || ""
+        defaultQuery: localStorage.getItem(STORAGE.defaultQueryKey) || ""
     };
 
     const STATE = {
         fetching: false,
+        avif: false,
+        isPickerActive: false,
         fetchCount: 0,
         resultsCount: 0,
         trial: 0,
@@ -1426,17 +1543,23 @@
 
     document.documentElement.innerHTML = html;
 
-    const divSearchInput = document.querySelector('div.SearchInput');
-    const divDefaultInput = document.querySelector('div.DefaultInput');
-    const actualInput = document.querySelector('input.ActualInput')
-    const defaultActualInput = document.querySelector('div.DefaultInput .ActualInput')
-    const divSearchC = document.querySelector("div.SearchContainer")
-    const divDefaultSearchC = document.querySelector('div.DefaultQueryContainer');
-    const divSuggestionC = document.querySelector("div.SearchContainer .SuggestionContainer")
-    const divDefaultSuggestionC = document.querySelector("div.DefaultQueryContainer .SuggestionContainer")
+    const menuBtnOpen = document.querySelector('#bi-list-open');
+    const menuBtnClose = document.querySelector('#bi-list-close');
+    const sidebar = document.querySelector('.Sidebar');
+    const overlay = document.querySelector('.SidebarOverlay');
+    const svgSearch = document.querySelector('.search-icon')
+    const searchWindow = document.querySelector(".SearchFloatingWindow")
+    const divSearchInput = document.querySelector("div.SearchInput#Search");
+    const divDefaultInput = document.querySelector("div.SearchInput#Default");
+    const actualInput = document.querySelector("input.ActualInput#Search")
+    const defaultActualInput = document.querySelector("input.ActualInput#Default")
+    const divInputC = document.querySelector("div.InputContainer#Search")
+    const divDefaultInputC = document.querySelector("div.InputContainer#Default");
+    const divSuggestionC = document.querySelector("div.SuggestionContainer#Search")
+    const divDefaultSuggestionC = document.querySelector("div.SuggestionContainer#Default")
     const divCardC = document.querySelector("div.CardContainer")
-    const searchButton = document.querySelector(".SearchContainer button")
-    const DefaultSaveButton = document.querySelector(".DefaultQueryContainer button")
+    const searchButton = document.querySelector("#SearchButton")
+    const defaultSaveButton = document.querySelector("#SaveButton")
     const aResCount = document.querySelector("a.ResultsCount")
     const eyeContainer = document.querySelector("div.EyeContainer")
     const svgEye = document.querySelector("div.EyeContainer .eye")
@@ -1447,16 +1570,17 @@
 
     if (CONFIG.picPreviewPerPage >= 1) await fetch_gg()
 
-    // const text = search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
-    await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
+    await check_avif_support()
+    await load(aResCount, divCardC, divSearchInput, actualInput, searchButton) // STATE.fetching, STATE.resultsCount
 
-    search_tag_listener(divSearchInput, actualInput, divSearchC, divSuggestionC, DefaultSaveButton)
-    search_tag_listener(divDefaultInput, defaultActualInput, divDefaultSearchC, divDefaultSuggestionC, DefaultSaveButton, true)
-    suggestion_listener(actualInput, divSuggestionC, divSearchC, divSearchInput)
-    suggestion_listener(defaultActualInput, divDefaultSuggestionC, divDefaultSearchC, divDefaultInput)
+    menu_and_search_listener(menuBtnOpen, sidebar, overlay, menuBtnClose, svgSearch, searchWindow)
+    search_tag_listener(divSearchInput, actualInput, divInputC, divSuggestionC, defaultSaveButton)
+    search_tag_listener(divDefaultInput, defaultActualInput, divDefaultInputC, divDefaultSuggestionC, defaultSaveButton, true)
+    suggestion_listener(actualInput, divSuggestionC, divSearchInput)
+    suggestion_listener(defaultActualInput, divDefaultSuggestionC, divDefaultInput)
     order_listener(optionOrderByDropdown) // STATE.orderBy
     search_listener(searchButton, divSearchInput, divSuggestionC, actualInput, aResCount, divCardC)
-    picker_listener(svgEye, buttonAdd, buttonEx, divDefaultInput, defaultActualInput, divSearchInput, actualInput, aResCount, divCardC, eyeText, eyeContainer, DefaultSaveButton)
+    picker_listener(svgEye, buttonAdd, buttonEx, divDefaultInput, defaultActualInput, eyeText, eyeContainer, defaultSaveButton)
 
     CONFIG.defaultQuery.split(/\s+/).forEach(query => {
         if (!query.length) return
@@ -1479,7 +1603,7 @@
             if (entry.isIntersecting && !STATE.fetching) {
                 observer.unobserve(entry.target);
 
-                await load(aResCount, divCardC);
+                await load(aResCount, divCardC, divSearchInput, actualInput, searchButton);
 
                 observer.observe(entry.target);
             }
@@ -1492,4 +1616,9 @@
 
         observer.observe(document.querySelector("#scrollSentinel"));
     }
+    document.querySelectorAll(".numeric").forEach(input => {
+        input.addEventListener("input", () => {
+            input.value = input.value.replace(/\D/g, "");
+        });
+    });
 })();

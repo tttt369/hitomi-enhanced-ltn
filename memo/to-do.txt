@@ -14,3 +14,4 @@ areaからの検索
 タグがN/Aの場合のフィルター
 tag, artist, charactersなどのタグ一覧
 supportdevモード
+一番最後まで読み込むとalertになる問題を修正

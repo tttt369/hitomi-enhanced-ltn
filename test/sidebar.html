@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スタイリッシュ・サイドバー V3</title>
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --sidebar-bg: #2c3e50;
+            --handle-color: #95a5a6; /* 通常時のグレー */
+            --handle-hover-color: #7f8c8d; /* ホバー時の少し濃いグレー */
+            --transition-speed: 0.4s;
+        }
+
+        body {
+            margin: 0;
+            font-family: sans-serif;
+            display: flex;
+            background-color: #f8f9fa;
+            overflow-x: hidden;
+        }
+
+        /* --- サイドバー --- */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background-color: var(--sidebar-bg);
+            color: white;
+            position: fixed;
+            left: 0;
+            top: 0;
+            transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        /* --- トグルボタンのコンテナ (透明) --- */
+        .toggle-container {
+            position: absolute;
+            right: -30px; 
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;   /* クリックしやすい広めの判定 */
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background: transparent;
+            user-select: none;
+        }
+
+        /* --- ハンドル（2本の線で構成） --- */
+        .handle {
+            position: relative;
+            width: 4px;
+            height: 40px;
+        }
+
+        /* 2本の線の共通設定 */
+        .line {
+            position: absolute;
+            width: 4px;
+            height: 22px; /* 少し長めにして中央で重なるように */
+            background-color: var(--handle-color);
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            left: 0;
+        }
+
+        /* 上半分の線 */
+        .line-top {
+            top: 0;
+            transform-origin: bottom center;
+        }
+
+        /* 下半分の線 */
+        .line-bottom {
+            bottom: 0;
+            transform-origin: top center;
+        }
+
+        /* --- ホバー時のアニメーション（開いた三角） --- */
+        /* 通常（開いている時）は「左向きの く」の字 */
+        .toggle-container:hover .line-top {
+            background-color: var(--handle-hover-color);
+            transform: translateY(1px) rotate(30deg); /* 垂直から30度傾斜 */
+        }
+        .toggle-container:hover .line-bottom {
+            background-color: var(--handle-hover-color);
+            transform: translateY(-1px) rotate(-30deg); /* 垂直から-30度傾斜 */
+        }
+
+        /* 閉じている時は「右向きの >」の字 */
+        .sidebar.collapsed .toggle-container:hover .line-top {
+            transform: translateY(1px) rotate(-30deg);
+        }
+        .sidebar.collapsed .toggle-container:hover .line-bottom {
+            transform: translateY(-1px) rotate(30deg);
+        }
+
+        /* --- メインコンテンツ --- */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            width: 100%;
+            padding: 50px;
+            transition: margin-left var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar.collapsed + .main-content {
+            margin-left: 0;
+        }
+
+        /* 装飾用 */
+        .sidebar-content { padding: 30px 20px; }
+        .sidebar-menu { list-style: none; padding: 0; }
+        .sidebar-menu li { padding: 15px 0; border-bottom: 1px solid rgba(255,255,255,0.1); color: #ecf0f1; }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar" id="sidebar">
+        <!-- トグルボタン -->
+        <div class="toggle-container" id="toggle-btn">
+            <div class="handle">
+                <div class="line line-top"></div>
+                <div class="line line-bottom"></div>
+            </div>
+        </div>
+
+        <div class="sidebar-content">
+            <h2>Dashboard</h2>
+            <ul class="sidebar-menu">
+                <li>Analytics</li>
+                <li>Users</li>
+                <li>Reports</li>
+                <li>Settings</li>
+            </ul>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <h1>開いた矢印のトグルボタン</h1>
+        <p>グレーのバーにマウスを合わせると、上下から線が折れ曲がり、120度の角度がついた「くの字」の矢印になります。</p>
+        <p>クリックするとサイドバーが格納され、矢印の向きも反転します。</p>
+    </main>
+
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('toggle-btn');
+
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
+    </script>
+</body>
+</html>
