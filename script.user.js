@@ -96,7 +96,8 @@
             start = 0,
             step = CONFIG.galleriesPerPage * 4,
             fetchAll = false,
-            returnStatus = false
+            returnStatus = false,
+            getRange = false,
         } = options;
 
         return new Promise((resolve) => {
@@ -111,6 +112,12 @@
 
             xhr.onload = () => {
                 if (xhr.status === 200 || xhr.status === 206) {
+                    if (getRange) {
+                        const contentRange = xhr.getResponseHeader("Content-Range");
+                        if (contentRange) {
+                            STATE.defaultRange = Number(contentRange.split('/').pop());
+                        }
+                    }
                     if (returnStatus) resolve([xhr.response, xhr.status])
                     resolve(xhr.response);
                 }
@@ -759,6 +766,63 @@
     }
 
     async function load(aResCount, divCardC, text = STATE.term) {
+        function create_page_navigation() {
+            pageContainers.forEach(pageContainer => {
+                let maxPage = 0
+                const pages = [], range = 3;
+
+                if (STATE.resultsCount) {
+                    maxPage = Math.ceil(STATE.resultsCount / CONFIG.galleriesPerPage);
+                } else if (STATE.defaultRange) {
+                    const res = STATE.defaultRange / 4
+                    maxPage = Math.ceil(res / CONFIG.galleriesPerPage);
+                }
+
+                pageContainer.innerHTML = '';
+
+                if (!(STATE.fetchCount + range >= maxPage)) {
+                    if (STATE.fetchCount >= 2) {
+                        pages.push(1)
+                        pages.push('...')
+                        for (let i = -1; i <= range - 1; i++) {
+                            if (STATE.fetchCount + i >= maxPage) break
+                            pages.push(STATE.fetchCount + i);
+                        }
+                    } else {
+                        for (let i = 0; i <= range; i++) {
+                            if (STATE.fetchCount + i >= maxPage) break
+                            pages.push(STATE.fetchCount + i);
+                        }
+                    }
+
+                    pages.push('...')
+                    pages.push(maxPage)
+                } else {
+                    pages.push(1)
+                    pages.push('...')
+                    for (let i = -range; i <= 0; i++) {
+                        pages.push(STATE.fetchCount + i);
+                    }
+                }
+
+                pages.forEach(p => {
+                    const a = document.createElement('a');
+                    a.textContent = p;
+                    if (p === STATE.fetchCount) a.style.color = 'var(--dimWhite)';
+                    a.onclick = async (e) => {
+                        e.preventDefault();
+                        if (p === STATE.fetchCount || STATE.fetching) return;
+
+                        STATE.fetchCount = p - 1;
+                        divCardC.innerHTML = "";
+                        
+                        await load(aResCount, divCardC);
+                    };
+                    pageContainer.appendChild(a);
+                })
+            })
+        }
+
         STATE.fetching = true;
         if (STATE.fetchCount === 0) divCardC.innerHTML = "";
 
@@ -766,7 +830,7 @@
         while (trial < CONFIG.trialLimit) {
             let idsList = [];
             if (!text.length) {
-                idsList = await nozomi_load({ fetchAll: false });
+                idsList = await nozomi_load({ fetchAll: false, getRange: true });
                 STATE.resultsCount = 0;
                 aResCount.textContent = '';
             } else {
@@ -794,6 +858,8 @@
         if (STATE.resultsCount) {
             aResCount.textContent = `${String(STATE.resultsCount)} Results`;
         }
+
+        create_page_navigation()
 
         await Promise.all(promises);
         divCardC.appendChild(fragment);
@@ -1313,46 +1379,74 @@
     }
 
     function setting_listener() {
-        const default_config = {...CONFIG}
+        function update_card_style() {
+            document.documentElement.style.setProperty('--cardWidth', `${CONFIG.cardWidth}px`);
+            document.documentElement.style.setProperty('--cardWrapWidth', `${CONFIG.cardWrapWidth}px`);
+        };
+
+        const default_config = {...CONFIG};
         divSetting.querySelectorAll('input').forEach(input => {
-            const value = JSON.parse(localStorage.getItem(input.id))
-            if (value) {
-                if (typeof value === 'boolean') input.checked = value
-                else if (value.length) input.value = value
-                CONFIG[input.id] = value
+            const strValue = localStorage.getItem(input.id);
+            if (strValue) {
+                const value = JSON.parse(strValue);
+                if (typeof value === 'boolean') {
+                    input.checked = value;
+                } else {
+                    input.value = value;
+                }
+                CONFIG[input.id] = value;
             }
-        })
-        load_default_query()
+        });
+
+        update_card_style();
+        load_default_query();
+
+        [STORAGE.cardWidthKey, STORAGE.cardWrapWidthKey].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', (e) => {
+                    CONFIG[id] = e.target.value;
+                    update_card_style();
+                });
+            }
+        });
 
         saveSettingButton.addEventListener('click', () => {
             divDefaultInput.querySelectorAll('.TagContainer').forEach(el => el.remove());
             divSetting.querySelectorAll('input').forEach(input => {
-                if (input.type === "text") {
-                    const value = input.value.length ? input.value : default_config[input.id]
-                    save_to_localstorage(saveSettingButton, input.id, value)
-                    CONFIG[input.id] = value
-                } else if (input.type === "checkbox") {
-                    save_to_localstorage(saveSettingButton, input.id, input.checked)
-                    CONFIG[input.id] = input.checked
+                let value;
+                if (input.type === "checkbox") {
+                    value = input.checked;
+                } else if (input.type === "range" || input.classList.contains('numeric')) {
+                    value = input.value.length ? Number(input.value) : default_config[input.id];
+                } else {
+                    value = input.value.length ? input.value : default_config[input.id];
                 }
-            })
-            load_default_query()
-        })
+                
+                save_to_localstorage(saveSettingButton, input.id, value);
+                CONFIG[input.id] = value;
+            });
+            update_card_style();
+            load_default_query();
+        });
 
-        exportSettingButton.addEventListener('click', export_setting) 
-        importSettingButton.addEventListener('click', import_setting) 
+        exportSettingButton.addEventListener('click', export_setting);
+        importSettingButton.addEventListener('click', import_setting);
     }
+
 
     async function nozomi_load(options = {}) {
         const {
             url = `//ltn.${STATE.domain}/index-all.nozomi`,
             step = CONFIG.galleriesPerPage * 4,
             fetchAll = true,
+            getRange = false,
         } = options;
+
         if (STATE.indexObj[url] && fetchAll) {
             return STATE.indexObj[url]
         } else {
-            const bytesArray = await xhr_get(url, { step: step, fetchAll: fetchAll });
+            const bytesArray = await xhr_get(url, { step: step, fetchAll: fetchAll, getRange: getRange });
             const view = new DataView(bytesArray);
             const totalBytes = view.byteLength;
             STATE.indexObj[url] = get_ids(totalBytes, view)
@@ -1443,6 +1537,8 @@
         galleriesPerPageKey: "galleriesPerPage",
         debounceTimeKey: "debounceTime",
         picPreviewPerPageKey: "picPreviewPerPage",
+        cardWidthKey: "cardWidth",
+        cardWrapWidthKey: "cardWrapWidth",
     }
 
     const CONFIG = {
@@ -1455,6 +1551,8 @@
         galleriesPerPage: 25,
         debounceTime: 300,
         picPreviewPerPage: 5,
+        cardWidth: 220,
+        cardWrapWidth: 190,
         defaultQuery: ""
     };
 
@@ -1464,6 +1562,7 @@
         isPickerActive: false,
         fetchCount: 0,
         resultsCount: 0,
+        defaultRange: 0,
         trial: 0,
         domain: "gold-usergeneratedcontent.net",
         orderBy: "",
@@ -1482,7 +1581,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
         <style>
-            :root {--radius: 0.375rem; --white: rgb(211, 211, 211); --dimWhite: rgb(140, 140, 140); --grey: #6c757d; --blue: #0d6efd; --green: #28a745; --red: #dc3545; --btnGreen: #198754; --btnRed: #a13643;}
+            :root {--radius: 0.375rem; --white: rgb(211, 211, 211); --dimWhite: rgb(140, 140, 140); --grey: #6c757d; --blue: #0d6efd; --green: #28a745; --red: #dc3545; --btnGreen: #198754; --btnRed: #a13643; --cardWidth: 220px; --cardWrapWidth: 190px;}
 
             body {margin: 0; background-color: hsl(0, 0%, 16%);}
             table tr td a {display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all; color: var(--dimWhite); text-decoration: none;}
@@ -1510,10 +1609,11 @@
 
             .CardTableContainer table {color: var(--dimWhite);}
             .CardTagsContainer a {margin-right: 5%; text-decoration: none; color: var(--white);}
-            .Card img {width: 100%; height: 220px; object-fit: cover; border-radius: var(--radius); }
+            .Card img {width: 100%; height: 220px; object-fit: cover; border-radius: var(--radius);}
             .EyeContainer a {white-space: nowrap; display: none;}
             .NavbarContainer a img {width: 80%;}
             .Setting label {color: var(--white);}
+            .PageContainer a {padding: 5px; cursor: pointer;}
 
             .Suggestion:hover, .SuggestionFocus {background-color: hsl(0, 0%, 10%); cursor: pointer;}
             input:focus {outline: none;}
@@ -1552,10 +1652,10 @@
             .CardContainer {display: flex; flex-wrap: wrap; justify-content: space-around; color: var(--white); background-color: hsl(0, 0%, 10%); border-radius: var(--radius); gap: 20px; margin: 10px;}
             .CardTableContainer {display: flex; flex-direction: column; align-items: center; overflow-x: auto; align-self: start;}
             .CardTagsContainer {scrollbar-width: thin; display: flex; overflow-x: auto; white-space: nowrap; background-color: hsl(0, 0%, 10%); width: 100%; scrollbar-color: darkgray transparent; margin-left: 10px; padding-right: 40px; box-sizing: border-box;}
-            .PageContainer {height: 100px; background-color: var(--white);}
+            .PageContainer {display: flex; justify-content: center; color: var(--white); margin: 10px;}
             .SuggestionContainer {display: none; margin: 0; position: absolute; z-index: 1; background-color: hsl(0, 0%, 13%); color: var(--white); border: 1px solid hsl(0, 0%, 18%); border-radius: var(--radius);}
             .EyeContainer {display: flex; background-color: transparent; border-radius: var(--radius); padding: 5px; gap: 5px;}
-            .InfoContainer {display: flex; justify-content: space-between; flex-direction: row-reverse; padding: 20px; align-items: center;}
+            .InfoContainer {margin: 0 0 20px 10px}
             .TagContainer {display: flex; align-items: center;}
             .ContentContainer {background-color: hsl(0, 0%, 13%); margin: 3% 3% auto 3%; border-radius: var(--radius); overflow: hidden;}
             .BottomContainer {display: -webkit-box;}
@@ -1595,7 +1695,7 @@
             .eye {margin-left: 1%;}
             .CardTitle {font-weight: bold; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all; color: var(--white);}
             .page {width: fit-content;}
-            .Card {display: flex; flex-direction: column; flex: 1 1 190px; max-width: 220px; background-color: hsl(0, 0%, 14%); overflow: hidden; justify-content: space-between; border-radius: var(--radius); border:1px solid hsl(0, 0%, 19%); padding: 5px; gap: 10px;}
+            .Card {display: flex; flex-direction: column; flex: 1 1 var(--cardWrapWidth); max-width: var(--cardWidth); background-color: hsl(0, 0%, 14%); overflow: hidden; justify-content: space-between; border-radius: var(--radius); border:1px solid hsl(0, 0%, 19%); padding: 5px; gap: 10px;}
             .Suggestion {display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid hsl(0, 0%, 18%);}
             .bi-list {color: var(--dimWhite); width: 32px; height: 32px; cursor: pointer;}
             .search-icon {width: 32px; cursor: pointer; fill: hsl(0, 0%, 25%);}
@@ -1633,14 +1733,15 @@
                 <label><input type="checkbox" id="${STORAGE.incrementTagKey}"> incrementTag</label>
                 <label><input type="checkbox" id="${STORAGE.fetchPageNumKey}"> fetchPageNum</label>
 
-                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.minPageKey}" placeholder="minPage: 0">
-                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.maxPageKey}" placeholder="maxPage: 0">
-                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.trialLimitKey}" placeholder="trialLimit: 5">
-                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.galleriesPerPageKey}" placeholder="galleriesPerPage: 25">
-                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.debounceTimeKey}" placeholder="debounceTime: 300">
-                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.picPreviewPerPageKey}" placeholder="picPreviewPerPage: 5">
-
-                <input class="SearchInput" type="text" id="${STORAGE.defaultQueryKey}" placeholder='defaultQuery: ""'>
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.cardWidthKey}" placeholder="cardWidth: ${CONFIG.cardWidth}">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.cardWrapWidthKey}" placeholder="cardWrapWidth: ${CONFIG.cardWrapWidth}">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.minPageKey}" placeholder="minPage: ${CONFIG.minPage}">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.maxPageKey}" placeholder="maxPage: ${CONFIG.maxPage}">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.trialLimitKey}" placeholder="trialLimit: ${CONFIG.trialLimit}">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.galleriesPerPageKey}" placeholder="galleriesPerPage: ${CONFIG.galleriesPerPage}">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.debounceTimeKey}" placeholder="debounceTime: ${CONFIG.debounceTime}">
+                <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.picPreviewPerPageKey}" placeholder="picPreviewPerPage: ${CONFIG.picPreviewPerPage}">
+                <input class="SearchInput" type="text" id="${STORAGE.defaultQueryKey}" placeholder="defaultQuery: ${CONFIG.defaultQuery}">
             </div>
             <button class="BtnGreenOut" id="SaveSettingButton" type="button">Save</button>
             <div>
@@ -1712,10 +1813,12 @@
                 </svg>
             </div>
             <div class="ContentContainer">
+                <div class="PageContainer"></div>
                 <div class="InfoContainer">
                     <a class="ResultsCount"></a>
                 </div>
                 <div class="CardContainer"></div>
+                <div class="PageContainer"></div>
             </div>
             <div id="scrollSentinel"></div>
         </div>
@@ -1753,6 +1856,7 @@
     const buttonAdd = document.querySelector("button.BtnAdd")
     const buttonEx = document.querySelector("button.BtnExclude")
     const optionOrderByDropdown = document.querySelectorAll("#orderbydropdown option")
+    const pageContainers = document.querySelectorAll('.PageContainer');
 
     if (CONFIG.picPreviewPerPage >= 1) await fetch_gg()
 
