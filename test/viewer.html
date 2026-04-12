@@ -8,48 +8,339 @@
         :root {--radius: 0.375rem; --white: rgb(211, 211, 211); --dimWhite: rgb(140, 140, 140); --grey: #6c757d; --blue: #0d6efd; --green: #28a745; --red: #dc3545; --btnGreen: #198754; --btnRed: #a13643;}
 
         body {
-            margin: 0;
-        }
-        .Container {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
             background-color: hsl(0, 0%, 10%);
-            width: 100vw;
-            height: 100vh;
         }
-        .ImageContainer {
+        tr td {
+            color: var(--dimWhite);
+        }
+        a {
+            text-decoration: none;
+            color: var(--white);
         }
         .HeaderContainer {
             display: flex;
+            background-color: hsl(0, 0%, 13%);
+            gap: 5px;
+            padding: 5px;
+            border-radius: var(--radius);
         }
-
-        .Header {
-            display:flex;
+        .ImageContainer {
+            display: flex;
+            flex-wrap: wrap;
+            background-color: hsl(0, 0%, 13%);
+            gap: 10px;
+            justify-content: space-around;
+            padding: 20px 5px 5px 5px;
+            border-radius: var(--radius);
+        }
+        .RelatedContainer {
+            display: flex;
+            flex-wrap: wrap;
+            background-color: hsl(0, 0%, 13%);
+            gap: 10px;
+            justify-content: space-around;
+            padding: 20px 5px 5px 5px;
+            border-radius: var(--radius);
+        }
+        .HeaderInfoContainer {
+            display: flex;
             flex-direction: column;
-            color: var(--white); 
             width: 100%;
         }
-        
-        .Title {
+        .CardTagsContainer {scrollbar-width: thin; display: flex; overflow-x: auto; white-space: nowrap; background-color: hsl(0, 0%, 19%); width: 100%; scrollbar-color: darkgray transparent; padding-right: 40px; box-sizing: border-box;}
 
+        .Title {
+            background-color: hsl(0, 0%, 16%);
+            width: 100%;
+            color: var(--white);
+            font-size: x-large;
+            border-radius: var(--radius) var(--radius) 0 0 ;
+            padding: 5px;
+            box-sizing: border-box;
+            font-weight: bold;
         }
+        .Artist {
+            background-color: hsl(0, 0%, 19%);
+            width: 100%;
+            color: var(--dimWhite);
+            border-radius: 0 0 var(--radius) var(--radius);
+            padding: 3px;
+            box-sizing: border-box;
+        }
+        .Info {
+            padding: 3px;
+        }
+        .Label {
+            width: 100px;
+            font-weight: bold;
+            color: var(--white);
+        }
+        .Thumbnail {
+            border-radius: var(--radius);
+        }
+        .Image {
+            width: 100px;
+            max-width: 130px;
+            height: 150px;
+            flex: 1 1;
+            border-radius: var(--radius);
+        }
+        .Card {
+            display: flex;
+            background-color: hsl(0, 0%, 16%);
+            padding: 5px;
+            border-radius: var(--radius);
+            flex: 1 1;
+        }
+        .CardTitle {
+            color: var(--white);
+            font-weight: bold;
+            font-size: large;
+        }
+        .CardImage {
+            width: 140px;
+            border-radius: var(--radius);
+        }
+        .CardContents {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding: 5px;
+            justify-content: space-around;
+            width: 100%;
+        }
+        .Header {
+            font-size: x-large;
+            font-weight: bold;
+            margin: 40px 0 10px 0;
+        }
+
+        .BadgeBlue, .BadgeGreen, .BadgeGrey, .BadgeRed {border-radius: var(--radius); padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
+        .BadgeGrey {background-color: var(--grey);}
+        .BadgeBlue {background-color: var(--blue);}
+        .page {width: fit-content;}
     </style>
 </head>
 <body>
-    <div class="Container">
-        <div class="HeaderContainer">
-            <div class="Header">
-                <a class="Title"> test </a>
-                <a class="Artist"> jhon Doe </a>
-                <a class="Group"> xyz </a>
-                <a class="Type"> Doujinshi </a>
-                <a class="Language"> 日本語 </a>
-                <a class="Series"> something </a>
-                <!-- <div class="Characters"> OCえっち漫画まとめ </div> -->
-                <!-- <div class="Tags"> OCえっち漫画まとめ </div> -->
-            </div>
-            <div class="ImageContainer">
-                <img src="https://picsum.photos/id/34/200/300" loading="lazy">
+    <div class="HeaderContainer">
+        <img class="Thumbnail" src="https://picsum.photos/id/12/200/300" loading="lazy">
+
+        <div class="HeaderInfoContainer">
+            <a class="Title">test</a>
+            <a class="Artist">jhon Doe</a>
+            <div class="Info">
+                <table>
+                    <tr><td class="Label">Group:</td><td>xyz</td></tr>
+                    <tr><td class="Label">Type:</td><td>Doujinshi</td></tr>
+                    <tr><td class="Label">Language:</td><td>日本語</td></tr>
+                    <tr><td class="Label">Series:</td><td>something</td></tr>
+                </table>
             </div>
         </div>
     </div>
+    <div id="pagination"></div>
+    <div class="ImageContainer">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+        <img class="Image" src="https://picsum.photos/id/12/200/300" loading="lazy">
+    </div>
+    <a class="Header">Related Contents</a>
+    <div class="RelatedContainer">
+        <div class="Card">
+            <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
+            <div class="CardContents">
+                <a class="CardTitle">HaneRu</a>
+                <div class="CardTableContainer">
+                    <table>
+                        <tr><td>language</td><td>:</td><td>日本語</td></tr>
+                        <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
+                        <tr><td>artist</td><td>:</td><td>N/A</td></tr>
+                        <tr><td>series</td><td>:</td><td>N/A</td></tr>
+                    </table>
+                </div>
+                <a class="page BadgeGrey">N/A</a>
+                <div class="CardTagsContainer">
+                    <a class="BadgeBlue">rewrite</a>
+                </div>
+            </div>
+        </div>
+        <div class="Card">
+            <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
+            <div class="CardContents">
+                <a class="CardTitle">HaneRu</a>
+                <div class="CardTableContainer">
+                    <table>
+                        <tr><td>language</td><td>:</td><td>日本語</td></tr>
+                        <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
+                        <tr><td>artist</td><td>:</td><td>N/A</td></tr>
+                        <tr><td>series</td><td>:</td><td>N/A</td></tr>
+                    </table>
+                </div>
+                <a class="page BadgeGrey">N/A</a>
+                <div class="CardTagsContainer">
+                    <a class="BadgeBlue">rewrite</a>
+                </div>
+            </div>
+        </div>
+        <div class="Card">
+            <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
+            <div class="CardContents">
+                <a class="CardTitle">HaneRu</a>
+                <div class="CardTableContainer">
+                    <table>
+                        <tr><td>language</td><td>:</td><td>日本語</td></tr>
+                        <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
+                        <tr><td>artist</td><td>:</td><td>N/A</td></tr>
+                        <tr><td>series</td><td>:</td><td>N/A</td></tr>
+                    </table>
+                </div>
+                <a class="page BadgeGrey">N/A</a>
+                <div class="CardTagsContainer">
+                    <a class="BadgeBlue">rewrite</a>
+                </div>
+            </div>
+        </div>
+        <div class="Card">
+            <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
+            <div class="CardContents">
+                <a class="CardTitle">HaneRu</a>
+                <div class="CardTableContainer">
+                    <table>
+                        <tr><td>language</td><td>:</td><td>日本語</td></tr>
+                        <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
+                        <tr><td>artist</td><td>:</td><td>N/A</td></tr>
+                        <tr><td>series</td><td>:</td><td>N/A</td></tr>
+                    </table>
+                </div>
+                <a class="page BadgeGrey">N/A</a>
+                <div class="CardTagsContainer">
+                    <a class="BadgeBlue">rewrite</a>
+                </div>
+            </div>
+        </div>
+        <div class="Card">
+            <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
+            <div class="CardContents">
+                <a class="CardTitle">HaneRu</a>
+                <div class="CardTableContainer">
+                    <table>
+                        <tr><td>language</td><td>:</td><td>日本語</td></tr>
+                        <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
+                        <tr><td>artist</td><td>:</td><td>N/A</td></tr>
+                        <tr><td>series</td><td>:</td><td>N/A</td></tr>
+                    </table>
+                </div>
+                <a class="page BadgeGrey">N/A</a>
+                <div class="CardTagsContainer">
+                    <a class="BadgeBlue">rewrite</a>
+                </div>
+            </div>
+        </div>
+        <div class="Card">
+            <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
+            <div class="CardContents">
+                <a class="CardTitle">HaneRu</a>
+                <div class="CardTableContainer">
+                    <table>
+                        <tr><td>language</td><td>:</td><td>日本語</td></tr>
+                        <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
+                        <tr><td>artist</td><td>:</td><td>N/A</td></tr>
+                        <tr><td>series</td><td>:</td><td>N/A</td></tr>
+                    </table>
+                </div>
+                <a class="page BadgeGrey">N/A</a>
+                <div class="CardTagsContainer">
+                    <a class="BadgeBlue">rewrite</a>
+                </div>
+            </div>
+        </div>
+    <script>
+        const images = Array.from(document.querySelectorAll('.Image'));
+        const container = document.querySelector('.ImageContainer');
+
+        const perPage = 10;
+        let currentPage = 1;
+
+        // 総ページ数
+        const totalPages = Math.ceil(images.length / perPage);
+
+        // 表示更新
+        function renderPage(page) {
+            currentPage = page;
+
+            // 一旦全部消す
+            container.innerHTML = '';
+
+            // 表示する範囲
+            const start = (page - 1) * perPage;
+            const end = start + perPage;
+
+            // 該当画像だけ追加
+            images.slice(start, end).forEach(img => {
+                container.appendChild(img);
+            });
+
+            renderPagination();
+        }
+
+        // ページボタン生成
+        function renderPagination() {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            for (let i = 1; i <= totalPages; i++) {
+                const btn = document.createElement('button');
+                btn.textContent = i;
+
+                if (i === currentPage) {
+                    btn.style.fontWeight = 'bold';
+                }
+
+                btn.onclick = () => renderPage(i);
+                pagination.appendChild(btn);
+            }
+        }
+
+        // 初期表示
+        renderPage(1);
+    </script>
 </body>
 </html>
