@@ -150,7 +150,7 @@
                   'beforeend',
                   `<tr><td>${type}</td><td>:</td><td><a href="${href}">${text}</a></td></tr>`
                 );
-
+                return list
             };
 
             function generate_tags(tags, container) {
@@ -257,9 +257,6 @@
             aPic.href = url
             aPic.target = "_blank"
 
-            pic_preview_listener(aPic, id, idsObj)
-            custom_viewer_listener(aCardTitle, id)
-
             aPic.appendChild(picture)
             divCard.appendChild(aPic)
             divCardC.appendChild(divCard)
@@ -271,11 +268,16 @@
             divCard.appendChild(divbottomC)
 
             aCardTitle.textContent = title
-            create_table("language", language, table)
-            create_table("type", type, table)
-            create_table("artist", artistList, table)
-            create_table("series", seriesList, table)
+
+            const tableDict = {}
+            tableDict.language = create_table("language", language, table)
+            tableDict.type = create_table("type", type, table)
+            tableDict.artist = create_table("artist", artistList, table)
+            tableDict.series = create_table("series", seriesList, table)
+
+            pic_preview_listener(aPic, id, idsObj)
             type_listener(table)
+            custom_viewer_listener(aCardTitle, picture, tableDict, id)
 
             aPage.textContent = idsObj[id].num ? `${idsObj[id].num}p` : "N/A"
             generate_tags(tags, divTagC)
@@ -1314,7 +1316,135 @@
         });
     }
 
-    function custom_viewer_listener(aTitle, id) {
+    function custom_viewer_listener(aTitle, picture, tableDict, id) {
+        function setupViewer(info) {
+            document.documentElement.innerHTML = html.viewer;
+
+            const divImageContainer = document.querySelector("div.ImageContainer");
+            const divHeaderInfoContainer = document.querySelector("div.HeaderInfoContainer");
+            const divInfo = document.querySelector("div.Info");
+            const aArtist = document.querySelector("a.Artist");
+            const _aTitle = document.querySelector("a.Title");
+            const divHeaderContainer = document.querySelector("div.HeaderContainer");
+            const divPages = document.querySelectorAll("div.Page");
+
+            picture.className = "Thumbnail"
+            divHeaderContainer.insertBefore(picture, divHeaderInfoContainer)
+
+            _aTitle.textContent = aTitle.textContent
+
+            const artistLinks = tableDict.artist.map(a => `<a href="${a.href}">${a.textContent}</a>`);
+            if (!artistLinks.length) artistLinks.push("<a>N/A</a>")
+            aArtist.insertAdjacentHTML(
+                'beforeend',
+                artistLinks.join(', ')
+            );
+
+            const table = document.createElement("table")
+
+            const langLinks = tableDict.language.map(a => `<a href="${a.href}">${a.textContent}</a>`);
+            if (!langLinks.length) langLinks.push("<a>N/A</a>")
+            table.insertAdjacentHTML(
+                'beforeend',
+                `<tr><td class="Label">language:</td><td>${langLinks.join(', ')}</td></tr>`
+            );
+            const typeLinks = tableDict.type.map(a => `<a href="${a.href}">${a.textContent}</a>`);
+            if (!typeLinks.length) typeLinks.push("<a>N/A</a>")
+            table.insertAdjacentHTML(
+                'beforeend',
+                `<tr><td class="Label">type:</td><td>${typeLinks.join(', ')}</td></tr>`
+            );
+            const seriesList = tableDict.series.map(a => `<a href="${a.href}">${a.textContent}</a>`);
+            if (!seriesList.length) seriesList.push("<a>N/A</a>")
+            table.insertAdjacentHTML(
+                'beforeend',
+                `<tr><td class="Label">series:</td><td>${seriesList.join(', ')}</td></tr>`
+            );
+
+            if (info.tags) {
+                const tagList = info.tags.map(tagDict => 
+                    `<a class="BadgeBlue" href="${tagDict.url}">${tagDict.tag}</a>`);
+                if (!tagList.length) tagList.push("<a>N/A</a>")
+                table.insertAdjacentHTML(
+                    'beforeend',
+                    `<tr><td class="Label">tags:</td><td>
+                        <div class="CardTagsContainer">
+                            ${tagList.join(', ')}
+                        </div>
+                    </td></tr>`
+                );
+            }
+
+            if (info.characters) {
+                const charList = info.characters.map(charDict => 
+                    `<a class="Badgegrey" href="${charDict.url}">${charDict.character}</a>`);
+                if (!charList.length) charList.push("<a>N/A</a>")
+                table.insertAdjacentHTML(
+                    'beforeend',
+                    `<tr><td class="Label">characters:</td><td>
+                        <div class="CardTagsContainer">
+                            ${charList.join(', ')}
+                        </div>
+                    </td></tr>`
+                );
+            }
+
+            divInfo.appendChild(table)
+            
+            const { files } = info;
+            const step = CONFIG.viewerImagePerPage;
+
+            for (let i = 0; i < files.length; i += step) {
+                const pageNum = Math.floor(i / step) + 1;
+                const batch = files.slice(i, i + step);
+
+                divPages.forEach(divPage => {
+                    const btn = document.createElement("button");
+                    btn.textContent = pageNum;
+                    btn.type = "button";
+
+                    btn.addEventListener("click", () => {
+                        updateActiveButtonState(divPages, pageNum);
+                        renderImages(divImageContainer, batch);
+                    });
+
+                    divPage.appendChild(btn);
+                });
+            }
+
+            if (files.length > 0) {
+                divPages.forEach(dp => dp.querySelector("button")?.click());
+            }
+        }
+
+        function renderImages(container, files) {
+            container.innerHTML = "";
+            
+            const fragment = document.createDocumentFragment();
+            files.forEach(fileDict => {
+                const img = document.createElement("img");
+                img.className = "Image lazyload";
+                img.dataset.src = get_preview_image(fileDict);
+                fragment.appendChild(img);
+            });
+            container.appendChild(fragment);
+        }
+
+        function updateActiveButtonState(containers, activeText) {
+            containers.forEach(container => {
+                const buttons = container.querySelectorAll("button");
+                buttons.forEach(btn => {
+                    if (btn.textContent === String(activeText)) {
+                        btn.style.color = "var(--dimWhite)";
+                        btn.style.fontWeight = 'bold';
+                    } else {
+                        btn.style.color = "";
+                        btn.style.fontWeight = '';
+                    }
+                });
+            });
+        }
+
         if (!CONFIG.useCustomViewer) return;
 
         aTitle.addEventListener('click', async (e) => {
@@ -1322,66 +1452,6 @@
 
             const info = await fetch_id_js(id);
             setupViewer(info);
-        });
-    }
-
-    function setupViewer(info) {
-        document.documentElement.innerHTML = html.viewer;
-
-        const divImageContainer = document.querySelector("div.ImageContainer");
-        const divPages = document.querySelectorAll("div.Page");
-        
-        const { files } = info;
-        const step = CONFIG.viewerImagePerPage;
-
-        for (let i = 0; i < files.length; i += step) {
-            const pageNum = Math.floor(i / step) + 1;
-            const batch = files.slice(i, i + step);
-
-            divPages.forEach(divPage => {
-                const btn = document.createElement("button");
-                btn.textContent = pageNum;
-                btn.type = "button";
-
-                btn.addEventListener("click", () => {
-                    updateActiveButtonState(divPages, pageNum);
-                    renderImages(divImageContainer, batch);
-                });
-
-                divPage.appendChild(btn);
-            });
-        }
-
-        if (files.length > 0) {
-            divPages.forEach(dp => dp.querySelector("button")?.click());
-        }
-    }
-
-    function renderImages(container, files) {
-        container.innerHTML = "";
-        
-        const fragment = document.createDocumentFragment();
-        files.forEach(fileDict => {
-            const img = document.createElement("img");
-            img.className = "Image lazyload";
-            img.dataset.src = get_preview_image(fileDict);
-            fragment.appendChild(img);
-        });
-        container.appendChild(fragment);
-    }
-
-    function updateActiveButtonState(containers, activeText) {
-        containers.forEach(container => {
-            const buttons = container.querySelectorAll("button");
-            buttons.forEach(btn => {
-                if (btn.textContent === String(activeText)) {
-                    btn.style.color = "var(--dimWhite)";
-                    btn.style.fontWeight = 'bold';
-                } else {
-                    btn.style.color = "";
-                    btn.style.fontWeight = '';
-                }
-            });
         });
     }
 
@@ -1909,7 +1979,13 @@
                     gap: 5px;
                     background-color: hsl(0, 0%, 10%);
                 }
+                table {
+                    width: 100%;
+                }
                 tr td {
+                    color: var(--white);
+                }
+                tr td a {
                     color: var(--dimWhite);
                 }
                 a {
@@ -1919,9 +1995,10 @@
                 .HeaderContainer {
                     display: flex;
                     background-color: hsl(0, 0%, 13%);
-                    gap: 5px;
+                    gap: 10px;
                     padding: 5px;
                     border-radius: var(--radius);
+                    overflow: hidden;
                 }
                 .ImageContainer {
                     display: flex;
@@ -1961,10 +2038,12 @@
                 .Artist {
                     background-color: hsl(0, 0%, 19%);
                     width: 100%;
-                    color: var(--dimWhite);
                     border-radius: 0 0 var(--radius) var(--radius);
                     padding: 3px;
                     box-sizing: border-box;
+                }
+                .Artist a {
+                    color: var(--dimWhite);
                 }
                 .Info {
                     padding: 3px;
@@ -1974,13 +2053,11 @@
                     font-weight: bold;
                     color: var(--white);
                 }
-                .Thumbnail {
+                .Thumbnail img {
                     border-radius: var(--radius);
                 }
                 .Image {
-                    width: 100px;
                     max-width: 130px;
-                    height: 150px;
                     flex: 1 1;
                     border-radius: var(--radius);
                 }
@@ -2014,7 +2091,7 @@
                     margin: 40px 0 10px 0;
                 }
 
-                .BadgeBlue, .BadgeGreen, .BadgeGrey, .BadgeRed {border-radius: var(--radius); padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700;}
+                .BadgeBlue, .BadgeGreen, .BadgeGrey, .BadgeRed {border-radius: var(--radius); padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; color: var(--white)}
                 .BadgeGrey {background-color: var(--grey);}
                 .BadgeBlue {background-color: var(--blue);}
                 .page {width: fit-content;}
@@ -2022,23 +2099,15 @@
         </head>
         <body>
             <div class="HeaderContainer">
-                <img class="Thumbnail" src="https://picsum.photos/id/12/200/300" loading="lazy">
-
                 <div class="HeaderInfoContainer">
-                    <a class="Title">test</a>
-                    <a class="Artist">jhon Doe</a>
-                    <div class="Info">
-                        <table>
-                            <tr><td class="Label">Group:</td><td>xyz</td></tr>
-                            <tr><td class="Label">Type:</td><td>Doujinshi</td></tr>
-                            <tr><td class="Label">Language:</td><td>日本語</td></tr>
-                            <tr><td class="Label">Series:</td><td>something</td></tr>
-                        </table>
-                    </div>
+                    <a class="Title"></a>
+                    <a class="Artist"></a>
+                    <div class="Info"></div>
                 </div>
             </div>
             <div class="Page"></div>
             <div class="ImageContainer"></div>
+            <div class="Page"></div>
             <a class="Header">Related Contents</a>
             <div class="RelatedContainer">
                 <div class="Card">
@@ -2131,26 +2200,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="Card">
-                    <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
-                    <div class="CardContents">
-                        <a class="CardTitle">HaneRu</a>
-                        <div class="CardTableContainer">
-                            <table>
-                                <tr><td>language</td><td>:</td><td>日本語</td></tr>
-                                <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
-                                <tr><td>artist</td><td>:</td><td>N/A</td></tr>
-                                <tr><td>series</td><td>:</td><td>N/A</td></tr>
-                            </table>
-                        </div>
-                        <a class="page BadgeGrey">N/A</a>
-                        <div class="CardTagsContainer">
-                            <a class="BadgeBlue">rewrite</a>
-                        </div>
-                    </div>
-                </div>
             </div>
-            <div class="Page"></div>
         </body>
         </html>
         `,
