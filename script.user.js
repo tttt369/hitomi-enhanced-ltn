@@ -137,6 +137,58 @@
         return galleriesList;
     }
 
+    async function parse_id_js(id) {
+        const res = {
+            title: [],
+            language: [],
+            type: [],
+            artists: [],
+            characters: [],
+            parodys: [],
+            tags: [],
+        }
+        const info = await fetch_id_js(id)
+        const isJapanese = navigator.language && navigator.language.startsWith('ja');
+
+        const title = {text: "", url: ""}
+        title.text = (info.japanese_title && isJapanese) ? info.japanese_title : info.title
+        title.url = info.galleryurl
+        res.title.push(title)
+
+        const language = {text: "", url: ""}
+        language.text = (info.language_localname && isJapanese) ? info.language_localname : info.language
+        language.url = info.language_url
+        res.language.push(language)
+
+        const type = {text: "", url: ""}
+        type.text = info.type
+        type.url = `/type/${info.type}-all.html`
+        res.type.push(type)
+
+        if (info.artists) {
+            info.artists.forEach(artist => {
+                res.artists.push({ text: artist.artist, url: artist.url })
+            })
+        }
+        if (info.characters) {
+            info.characters.forEach(character => {
+                res.characters.push({ text: character.character, url: character.url })
+            })
+        }
+        if (info.parodys) {
+            info.parodys.forEach(parody => {
+                res.parodys.push({ text: parody.parody, url: parody.url })
+            })
+        }
+        if (info.tags) {
+            info.tags.forEach(tag => {
+                res.tags.push({ text: tag.tag, url: tag.url })
+            })
+        }
+
+        return res
+    }
+
     function generate_card(gallery, idsObj, divCardC) {
         return new Promise((resolve) => {
             function create_table(type, listOrItem, container, defaultText = 'N/A') {
@@ -1316,8 +1368,57 @@
         });
     }
 
+    function createLinksHtml(dict, options = {}) {
+        const { 
+            className = '', 
+        } = options;
+
+        if (!dict || dict.length === 0) {
+            return '<a>N/A</a>';
+        }
+
+        return dict.map(item => {
+            const text = item.text
+            const href = item.url
+            const classAttr = className ? ` class="${className}"` : '';
+            return `<a${classAttr} href="${href}">${text}</a>`;
+        }).join(', ');
+    }
+
+    function appendTableRow(table, label, contentHtml, containerClass = '') {
+        const finalContent = containerClass 
+            ? `<div class="${containerClass}">${contentHtml}</div>` 
+            : contentHtml;
+
+        table.insertAdjacentHTML(
+            'beforeend',
+            `<tr><td class="Label">${label}:</td><td>${finalContent}</td></tr>`
+        );
+    }
+
+    function generate_tags(tags, container) {
+        if (tags.length === 0) {
+            const aTag = document.createElement('a');
+            aTag.className = 'BadgeBlue';
+            aTag.textContent = 'N/A';
+            container.appendChild(aTag);
+        } else {
+            tags.forEach(tag => {
+                if (tag.textContent === '...') return;
+
+                const aTag = document.createElement('a');
+                aTag.className = 'BadgeBlue';
+                aTag.textContent = tag.text
+
+                tag_listener(aTag)
+
+                container.appendChild(aTag);
+            });
+        };
+    };
+
     function custom_viewer_listener(aTitle, picture, tableDict, id) {
-        function setupViewer(info) {
+        async function setupViewer(info) {
             document.documentElement.innerHTML = html.viewer;
 
             const divImageContainer = document.querySelector("div.ImageContainer");
@@ -1326,6 +1427,7 @@
             const aArtist = document.querySelector("a.Artist");
             const _aTitle = document.querySelector("a.Title");
             const divHeaderContainer = document.querySelector("div.HeaderContainer");
+            const divRelatedContainer = document.querySelector("div.RelatedContainer");
             const divPages = document.querySelectorAll("div.Page");
 
             picture.className = "Thumbnail"
@@ -1390,6 +1492,56 @@
             }
 
             divInfo.appendChild(table)
+
+            for (const x of info.related) {
+                const rInfo = await fetch_id_js(x)
+                const parsedInfo = await parse_id_js(parseInt(rInfo.id))
+
+                const divCard = document.createElement("div")
+                divCard.className = "Card"
+
+                const imgCardImage = document.createElement("img") 
+                imgCardImage.className = "CardImage"
+                imgCardImage.dataset.src = get_preview_image(rInfo.files[0])
+                imgCardImage.className = "CardImage lazyload"
+
+                const divCardContents = document.createElement("div")
+                divCardContents.className = "CardContents"
+
+                const aCardTitle = document.createElement("a")
+                aCardTitle.className = "CardTitle"
+                aCardTitle.textContent = parsedInfo.title[0].text
+
+                const divCardTableContainer = document.createElement("div")
+                divCardContents.className = "CardTableContainer"
+
+                const rTable = document.createElement("table")
+                appendTableRow(rTable, "language", createLinksHtml(parsedInfo.language));
+                appendTableRow(rTable, "type", createLinksHtml(parsedInfo.type));
+                appendTableRow(rTable, "artists", createLinksHtml(parsedInfo.artists));
+                appendTableRow(rTable, "series", createLinksHtml(parsedInfo.parodys));
+
+                const aPageNum = document.createElement("a")
+                aPageNum.className = "page BadgeGrey"
+                aPageNum.textContent = `${rInfo.files.length}p`
+
+                const divCardTagsContainer = document.createElement("div")
+                divCardTagsContainer.className = "CardTagsContainer"
+
+                generate_tags(parsedInfo.tags, divCardTagsContainer)
+
+                divRelatedContainer.appendChild(divCard)
+
+                divCard.appendChild(imgCardImage)
+                divCard.appendChild(divCardContents)
+
+                divCardContents.appendChild(aCardTitle)
+                divCardContents.appendChild(divCardTableContainer)
+                divCardContents.appendChild(aPageNum)
+                divCardContents.appendChild(divCardTagsContainer)
+
+                divCardTableContainer.appendChild(rTable)
+            }
             
             const { files } = info;
             const step = CONFIG.viewerImagePerPage;
@@ -2017,6 +2169,8 @@
                     justify-content: space-around;
                     padding: 20px 5px 5px 5px;
                     border-radius: var(--radius);
+                    flex-direction: column;
+                    overflow: hidden;
                 }
                 .HeaderInfoContainer {
                     display: flex;
@@ -2024,6 +2178,14 @@
                     width: 100%;
                 }
                 .CardTagsContainer {scrollbar-width: thin; display: flex; overflow-x: auto; white-space: nowrap; background-color: hsl(0, 0%, 19%); width: 100%; scrollbar-color: darkgray transparent; padding-right: 40px; box-sizing: border-box;}
+                .CardTableContainer {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 5px;
+                    margin: 5px;
+                    justify-content: space-around;
+                }
+
 
                 .Title {
                     background-color: hsl(0, 0%, 16%);
@@ -2067,6 +2229,7 @@
                     padding: 5px;
                     border-radius: var(--radius);
                     flex: 1 1;
+                    overflow: hidden;
                 }
                 .CardTitle {
                     color: var(--white);
@@ -2074,8 +2237,9 @@
                     font-size: large;
                 }
                 .CardImage {
-                    width: 140px;
+                    max-width: 200px;
                     border-radius: var(--radius);
+                    object-fit: cover;
                 }
                 .CardContents {
                     display: flex;
@@ -2091,7 +2255,15 @@
                     margin: 40px 0 10px 0;
                 }
 
-                .BadgeBlue, .BadgeGreen, .BadgeGrey, .BadgeRed {border-radius: var(--radius); padding: 0.35em 0.65em; font-size: 0.75em; font-weight: 700; color: var(--white)}
+                .BadgeBlue, .BadgeGreen, .BadgeGrey, .BadgeRed {
+                    border-radius: var(--radius);
+                    padding: 0.35em 0.65em;
+                    font-size: 0.75em;
+                    font-weight: 700;
+                    color: var(--white);
+                    margin-left: 3px;
+                }
+
                 .BadgeGrey {background-color: var(--grey);}
                 .BadgeBlue {background-color: var(--blue);}
                 .page {width: fit-content;}
@@ -2109,98 +2281,7 @@
             <div class="ImageContainer"></div>
             <div class="Page"></div>
             <a class="Header">Related Contents</a>
-            <div class="RelatedContainer">
-                <div class="Card">
-                    <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
-                    <div class="CardContents">
-                        <a class="CardTitle">HaneRu</a>
-                        <div class="CardTableContainer">
-                            <table>
-                                <tr><td>language</td><td>:</td><td>日本語</td></tr>
-                                <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
-                                <tr><td>artist</td><td>:</td><td>N/A</td></tr>
-                                <tr><td>series</td><td>:</td><td>N/A</td></tr>
-                            </table>
-                        </div>
-                        <a class="page BadgeGrey">N/A</a>
-                        <div class="CardTagsContainer">
-                            <a class="BadgeBlue">rewrite</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="Card">
-                    <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
-                    <div class="CardContents">
-                        <a class="CardTitle">HaneRu</a>
-                        <div class="CardTableContainer">
-                            <table>
-                                <tr><td>language</td><td>:</td><td>日本語</td></tr>
-                                <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
-                                <tr><td>artist</td><td>:</td><td>N/A</td></tr>
-                                <tr><td>series</td><td>:</td><td>N/A</td></tr>
-                            </table>
-                        </div>
-                        <a class="page BadgeGrey">N/A</a>
-                        <div class="CardTagsContainer">
-                            <a class="BadgeBlue">rewrite</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="Card">
-                    <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
-                    <div class="CardContents">
-                        <a class="CardTitle">HaneRu</a>
-                        <div class="CardTableContainer">
-                            <table>
-                                <tr><td>language</td><td>:</td><td>日本語</td></tr>
-                                <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
-                                <tr><td>artist</td><td>:</td><td>N/A</td></tr>
-                                <tr><td>series</td><td>:</td><td>N/A</td></tr>
-                            </table>
-                        </div>
-                        <a class="page BadgeGrey">N/A</a>
-                        <div class="CardTagsContainer">
-                            <a class="BadgeBlue">rewrite</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="Card">
-                    <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
-                    <div class="CardContents">
-                        <a class="CardTitle">HaneRu</a>
-                        <div class="CardTableContainer">
-                            <table>
-                                <tr><td>language</td><td>:</td><td>日本語</td></tr>
-                                <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
-                                <tr><td>artist</td><td>:</td><td>N/A</td></tr>
-                                <tr><td>series</td><td>:</td><td>N/A</td></tr>
-                            </table>
-                        </div>
-                        <a class="page BadgeGrey">N/A</a>
-                        <div class="CardTagsContainer">
-                            <a class="BadgeBlue">rewrite</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="Card">
-                    <img class="CardImage" src="https://picsum.photos/id/1/200/300" loading="lazy">
-                    <div class="CardContents">
-                        <a class="CardTitle">HaneRu</a>
-                        <div class="CardTableContainer">
-                            <table>
-                                <tr><td>language</td><td>:</td><td>日本語</td></tr>
-                                <tr><td>type</td><td>:</td><td>doujinshi</td></tr>
-                                <tr><td>artist</td><td>:</td><td>N/A</td></tr>
-                                <tr><td>series</td><td>:</td><td>N/A</td></tr>
-                            </table>
-                        </div>
-                        <a class="page BadgeGrey">N/A</a>
-                        <div class="CardTagsContainer">
-                            <a class="BadgeBlue">rewrite</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <div class="RelatedContainer"></div>
         </body>
         </html>
         `,
