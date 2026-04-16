@@ -537,6 +537,20 @@
             return data
         }
 
+        async function fetch_unit_ids(term) {
+            if (term.includes('|')) {
+                const subTerms = term.split('|').filter(t => t.length > 0);
+                const idSets = await Promise.all(subTerms.map(t => fetch_term_data(t)));
+                const union = new Set();
+                for (const ids of idSets) {
+                    for (const id of ids) union.add(id);
+                }
+                return Array.from(union);
+            } else {
+                return await fetch_term_data(term);
+            }
+        }
+
         const terms = decodeURIComponent(text).replace(/^\?/, '').split(/\s+/);
         const posTerms = [], negTerms = []
 
@@ -548,21 +562,23 @@
 
         let results = null
         if (posTerms.length === 0) {
-            results = await nozomi_load({ url: `//ltn.${STATE.domain}/n/index-all.nozomi` }); // STATE.indexObj
+            results = await nozomi_load({ url: `//ltn.${STATE.domain}/n/index-all.nozomi` });
         } else {
             for (let i = 0; i < posTerms.length; i++) {
-                const ids = await fetch_term_data(posTerms[i]);
+                const ids = await fetch_unit_ids(posTerms[i]);
                 if (i === 0) {
                     results = ids;
                 } else {
                     const idSet = new Set(ids);
                     results = results.filter(id => idSet.has(id));
                 }
+                if (results.length === 0) break;
             }
         }
 
         for (const term of negTerms) {
-            const ids = await fetch_term_data(term);
+            if (results.length === 0) break;
+            const ids = await fetch_unit_ids(term);
             const idSet = new Set(ids);
             results = results.filter(id => !idSet.has(id));
         }
@@ -572,6 +588,8 @@
         
         if (isRandom) {
             return random_access(results);
+        } else {
+            results.sort((a, b) => b - a);
         }
 
         const start = STATE.fetchCount * CONFIG.galleriesPerPage;
@@ -620,6 +638,7 @@
     async function get_search_suggestion(text, divSuggestionC, divSearchInput, actualInput) {
         async function return_json(query, checkValid = false) {
             let field = 'global', term = ubar2space(query), istag = false, jsonSuggestions = []
+
             if (query.includes(':')) {
                 const sides = query.split(/:/);
                 field = sides[0];
@@ -685,7 +704,7 @@
         };
 
         const inputList = text.split(/\s+/)
-        let newInputList = [], negList = [], posList = [], isNegative = false
+        let newInputList = [], negList = [], posList = [], isNegative = false, isOr = false
         inputList.forEach(term => {
             if (/^-/.test(term)) {
                 term = term.replace(/^-/, "")
@@ -719,7 +738,8 @@
             if (isHalfLonger && ns.includes(text)) validNS.add(ns)
         })
 
-        const lastInput = newInputList.at(-1);
+        let lastInput = newInputList.at(-1);
+        if (lastInput.includes("|")) isOr = true; lastInput = lastInput.replace("|", "")
         const suggestions = await return_json(lastInput)
 
         Array.from(validNS).forEach(ns => {
@@ -1510,6 +1530,7 @@
 
                 const aCardTitle = document.createElement("a")
                 aCardTitle.className = "CardTitle"
+                aCardTitle.href = rInfo.
                 aCardTitle.textContent = parsedInfo.title[0].text
 
                 const divCardTableContainer = document.createElement("div")
@@ -1573,11 +1594,16 @@
             container.innerHTML = "";
             
             const fragment = document.createDocumentFragment();
-            files.forEach(fileDict => {
+            files.forEach((fileDict, idx) => {
+                const a = document.createElement("a")
+                a.href = `reader/${id}.html#${idx + 1}`
+
                 const img = document.createElement("img");
                 img.className = "Image lazyload";
                 img.dataset.src = get_preview_image(fileDict);
-                fragment.appendChild(img);
+
+                a.appendChild(img)
+                fragment.appendChild(a);
             });
             container.appendChild(fragment);
         }
