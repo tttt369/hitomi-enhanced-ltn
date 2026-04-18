@@ -216,8 +216,6 @@
                         const clone = tag.cloneNode(true);
                         if (clone.textContent === '...') return;
 
-                        tag_listener(clone)
-
                         clone.className = 'BadgeBlue';
                         container.appendChild(clone);
                     });
@@ -328,7 +326,6 @@
             tableDict.series = create_table("series", seriesList, table)
 
             pic_preview_listener(aPic, id, idsObj)
-            type_listener(table)
             custom_viewer_listener(aCardTitle, picture, tableDict, id)
 
             aPage.textContent = idsObj[id].num ? `${idsObj[id].num}p` : "N/A"
@@ -523,7 +520,7 @@
             const key = new Uint8Array(sha256.array(term).slice(0, 4));
             const versionUrl = `//ltn.${STATE.domain}/galleriesindex/version?_=${Date.now()}.index`;
 
-            if (!STATE.indexObj[versionUrl]) {
+            if (!(STATE.indexObj[versionUrl] && STATE.indexObj[versionUrl].length)) {
                 STATE.indexObj[versionUrl] = await xhr_get(versionUrl, { responseType: "text" });
             }
             const indexUrl = `//ltn.${STATE.domain}/galleriesindex/galleries.${STATE.indexObj[versionUrl]}.index`;
@@ -549,6 +546,12 @@
             } else {
                 return await fetch_term_data(term);
             }
+        }
+
+        if (STATE.indexObj[text] && STATE.indexObj[text].length) {
+            const res = STATE.indexObj[text]
+            const start = STATE.fetchCount * CONFIG.galleriesPerPage;
+            return res.slice(start, start + CONFIG.galleriesPerPage);
         }
 
         const terms = decodeURIComponent(text).replace(/^\?/, '').split(/\s+/);
@@ -606,6 +609,8 @@
         } else {
             results.sort((a, b) => b - a);
         }
+
+        STATE.indexObj[text] = results
 
         const start = STATE.fetchCount * CONFIG.galleriesPerPage;
         return results.slice(start, start + CONFIG.galleriesPerPage);
@@ -885,12 +890,16 @@
                         pages.push('...')
                         for (let i = -1; i <= range - 1; i++) {
                             if (STATE.fetchCount + i >= maxPage) break
-                            pages.push(STATE.fetchCount + i);
+                            if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
+                                pages.push(STATE.fetchCount + i);
+                            }
                         }
                     } else {
                         for (let i = 0; i <= range; i++) {
                             if (STATE.fetchCount + i >= maxPage) break
-                            pages.push(STATE.fetchCount + i);
+                            if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
+                                pages.push(STATE.fetchCount + i);
+                            }
                         }
                     }
 
@@ -900,7 +909,9 @@
                     pages.push(1)
                     pages.push('...')
                     for (let i = -range; i <= 0; i++) {
-                        pages.push(STATE.fetchCount + i);
+                        if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
+                            pages.push(STATE.fetchCount + i);
+                        }
                     }
                 }
 
@@ -1214,27 +1225,42 @@
         })
 
         document.addEventListener('click', async (e) => {
-            if (!STATE.isPickerActive) return
-
             const tag = e.target.closest('.BadgeBlue');
+            const type = e.target.closest('table tr td a');
             if (tag) {
-                e.preventDefault();
-                if (tag.style.border === "") {
-                    tag.style.border = "solid yellow"
-                    selectedTag.push(tag)
+                if (!STATE.isPickerActive) {
+                    const tagText = extract_tag(tag.href);
+                    tag_to_badge(tagText, divSearchInput, actualInput);
+
+                    if (!CONFIG.incrementTag) {
+                        searchButton.click();
+                    }
+                    return
                 }
-                else if (tag.style.border === "solid yellow") {
-                    tag.style.border = ""
+
+
+                e.preventDefault();
+
+                if (tag.style.border === "") {
+                    tag.style.border = "solid yellow";
+                    selectedTag.push(tag);
+                } else {
+                    tag.style.border = "";
                     selectedTag = selectedTag.filter(item => item !== tag);
                 }
-            }
-        });
-        document.addEventListener('click', async (e) => {
-            if (!STATE.isPickerActive) return
+            } else if (type) {
+                if (!STATE.isPickerActive) {
+                    if (e.target.matches('a')) {
+                        const typeText = extract_table(type);
+                        tag_to_badge(typeText, divSearchInput, actualInput)
+                        if (!CONFIG.incrementTag) {
+                            searchButton.click()
+                        }
+                    }
+                }
 
-            const type = e.target.closest('table tr td a');
-            if (type) {
                 e.preventDefault();
+
                 if (type.style.border === "") {
                     type.style.border = "solid yellow"
                     selectedType.push(type)
@@ -1462,8 +1488,6 @@
                 const aTag = document.createElement('a');
                 aTag.className = 'BadgeBlue';
                 aTag.textContent = tag.text
-
-                tag_listener(aTag)
 
                 container.appendChild(aTag);
             });
@@ -1697,31 +1721,6 @@
                 searchWindow.classList.remove('active');
             }
         };
-    }
-
-    function type_listener(table) {
-        table.addEventListener('click', (e) => {
-            if (e.target.matches('a')) {
-                e.preventDefault();
-                const type = e.target.closest('a');
-                const typeText = extract_table(type);
-                tag_to_badge(typeText, divSearchInput, actualInput)
-                if (!CONFIG.incrementTag) {
-                    searchButton.click()
-                }
-            }
-        });
-    }
-
-    function tag_listener(tag) {
-        tag.addEventListener('click', async (e) => {
-            e.preventDefault()
-            const tagText = extract_tag(tag.href);
-            tag_to_badge(tagText, divSearchInput, actualInput)
-            if (!CONFIG.incrementTag) {
-                searchButton.click()
-            }
-        })
     }
 
     function setting_listener() {
