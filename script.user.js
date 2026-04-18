@@ -512,7 +512,7 @@
             if (orderby === 'random') {
                 return `//ltn.${STATE.domain}/${prefix}/${area}/${tag}-${language}.nozomi`;
             }
-            if (orderby.includes(':')) { // popular:year など
+            if (orderby.includes(':')) {
                 const [sort, key] = orderby.split(':');
                 return `//ltn.${STATE.domain}/${prefix}/${area}/${sort}/${key}/${tag}-${language}.nozomi`;
             }
@@ -553,12 +553,27 @@
 
         const terms = decodeURIComponent(text).replace(/^\?/, '').split(/\s+/);
         const posTerms = [], negTerms = []
+        for (let idx = 0; idx < terms.length; idx++) {
+            let term = ubar2space(terms[idx]);
 
-        terms.forEach(term => {
-            term = ubar2space(term);
+            if (term === '|') {
+                if (idx > 0 && idx + 1 < terms.length) {
+                    const prev = ubar2space(terms[idx - 1]);
+                    const next = ubar2space(terms[idx + 1]);
+                    const combined = `${prev}|${next}`;
+                 
+                    if (posTerms.length && posTerms[posTerms.length - 1] === prev) posTerms.pop();
+                    if (negTerms.length && negTerms[negTerms.length - 1] === prev) negTerms.pop();
+                 
+                    posTerms.push(combined);
+                    idx++;
+                }
+                continue;
+            }
+
             if (term.startsWith('-')) negTerms.push(term.slice(1));
             else posTerms.push(term);
-        });
+        }
 
         let results = null
         if (posTerms.length === 0) {
@@ -596,11 +611,11 @@
         return results.slice(start, start + CONFIG.galleriesPerPage);
     }
 
-    function tag_to_badge(query, divContainer, actualInput) {
+    function tag_to_badge(query, divContainer, actualInput, isOr = false) {
         if (!query.length) return
 
-        const existingInput = actualInput.value.split(/\s+/)
-        if (existingInput.includes(query)) return
+        let existingInput = actualInput.value.split(/\s+/)
+        if (!isOr && existingInput.includes(query)) return
 
         const spanExists = [...divContainer.querySelectorAll("span")]
             .some(span => span.textContent.trim() === query)
@@ -630,7 +645,22 @@
             divTagC.appendChild(span)
 
             divContainer.insertBefore(divTagC, actualInput);
-        } else {
+        } else if (isOr) {
+            const input = `<input class="BetweenInput" type="text" maxlength="0">`
+
+            const divTagC = document.createElement("div")
+            divTagC.className = "TagContainer"
+            divTagC.innerHTML = input
+
+            const span = document.createElement("span");
+            span.textContent = "|"
+            span.style.color = "cyan"
+
+            divTagC.appendChild(span)
+
+            divContainer.insertBefore(divTagC, actualInput);
+        }
+        else {
             actualInput.value += (actualInput.value ? " " : "") + query
         }
     }
@@ -778,6 +808,9 @@
                     await get_search_suggestion(`${suggestion[0]}:`, divSuggestionC, divSearchInput, actualInput)
                 } else {
                     divSuggestionC.style.display = 'none';
+                    if (isOr) {
+                        tag_to_badge("|", divSearchInput, actualInput, true)
+                    }
                     tag_to_badge(query, divSearchInput, actualInput)
                     actualInput.value = ''
                 }
@@ -960,7 +993,7 @@
             if (e.key === 'Backspace' && isSelectionEmpty && currentInput.selectionStart === 0) {
                 let tagToRemove = null;
 
-                if (currentInput.classList.contains('.ActualInput')) {
+                if (currentInput.classList.contains('ActualInput')) {
                     const tags = divSearchInput.querySelectorAll('.TagContainer');
                     if (tags.length > 0) {
                         tagToRemove = tags[tags.length - 1];
@@ -1530,7 +1563,7 @@
 
                 const aCardTitle = document.createElement("a")
                 aCardTitle.className = "CardTitle"
-                aCardTitle.href = rInfo.
+                aCardTitle.href = rInfo.galleryurl
                 aCardTitle.textContent = parsedInfo.title[0].text
 
                 const divCardTableContainer = document.createElement("div")
