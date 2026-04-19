@@ -11,1340 +11,304 @@
 (async function() {
     'use strict';
 
-    function get_ids(totalBytes, view) {
-        const idsList = []
-        for (let i = 0; i < totalBytes; i += 4) {
-            const id = view.getUint32(i, false);
-            idsList.push(id)
-        };
-        return idsList
-    }
+    const FETCH = {
+        id_js: async function id_js(id) {
+            const url = `//ltn.${STATE.domain}/galleries/${id}.js`;
+            const response = await FETCH.get(url, { responseType: "text" });
+            
+            const startIdx = response.indexOf('{');
+            const endIdx = response.lastIndexOf('}');
+            if (startIdx === -1 || endIdx === -1) return
+            
+            const jsonStr = response.substring(startIdx, endIdx + 1);
+            const galleryinfo = JSON.parse(jsonStr);
+            if (!galleryinfo || !galleryinfo.files) return
 
-    async function fetch_id_js(id) {
-        const url = `//ltn.${STATE.domain}/galleries/${id}.js`;
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const text = await response.text();
-        
-        const startIdx = text.indexOf('{');
-        const endIdx = text.lastIndexOf('}');
-        if (startIdx === -1 || endIdx === -1) return
-        
-        const jsonStr = text.substring(startIdx, endIdx + 1);
-        const galleryinfo = JSON.parse(jsonStr);
-        if (!galleryinfo || !galleryinfo.files) return
-
-        return galleryinfo
-    }
-
-    async function filter_contents(idsList, options = {}) {
-        const {
-            fetchPageNum = CONFIG.fetchPageNum,
-        } = options;
-
-        let num = 0, previewFiles = [], files = [];
-
-        const idsObj = {}, promises = []
-
-        idsList.forEach(id => {
-            idsObj[id] = { num: num, previewFiles: previewFiles }
-            if (fetchPageNum) {
-                promises.push(fetch_id_js(id));
+            return galleryinfo
+        },
+        parsed_id_js: async function parsed_id_js(id) {
+            const res = {
+                title: [],
+                language: [],
+                type: [],
+                artists: [],
+                characters: [],
+                parodys: [],
+                tags: [],
+                pictures: [],
             }
-        })
+            const info = await FETCH.id_js(id)
+            const isJapanese = navigator.language && navigator.language.startsWith('ja');
 
-        if (!fetchPageNum) return idsObj
+            const title = {text: "", url: ""}
+            title.text = (info.japanese_title && isJapanese) ? info.japanese_title : info.title
+            title.url = info.galleryurl
+            res.title.push(title)
 
-        const promisesList = await Promise.all(promises);
+            const language = {text: "", url: ""}
+            language.text = (info.language_localname && isJapanese) ? info.language_localname : info.language
+            language.url = info.language_url
+            res.language.push(language)
 
-        for (const item of promisesList) {
+            const type = {text: "", url: ""}
+            type.text = info.type
+            type.url = `/type/${info.type}-all.html`
+            res.type.push(type)
 
-            if (fetchPageNum) {
-                num = files.length;
+            if (info.artists) {
+                info.artists.forEach(artist => {
+                    res.artists.push({ text: artist.artist, url: artist.url })
+                })
+            }
+            if (info.characters) {
+                info.characters.forEach(character => {
+                    res.characters.push({ text: character.character, url: character.url })
+                })
+            }
+            if (info.parodys) {
+                info.parodys.forEach(parody => {
+                    res.parodys.push({ text: parody.parody, url: parody.url })
+                })
+            }
+            if (info.tags) {
+                info.tags.forEach(tag => {
+                    res.tags.push({ text: tag.tag, url: tag.url })
+                })
+            }
+            if (info.files) {
+                res.pictures = [...info.files]
             }
 
-            if (fetchPageNum && CONFIG.minPage >= 1 && num < CONFIG.minPage) {
-                continue;
-            }
-            if (fetchPageNum && CONFIG.maxPage >= 1 && CONFIG.maxPage < num) {
-                continue;
-            }
+            return res
+        },
+        get: async function get(url, options = {}) {
+            const {
+                responseType = 'arraybuffer',
+                start = 0,
+                step = CONFIG.galleriesPerPage * 4,
+                fetchAll = false,
+                returnStatus = false,
+                getRange = false,
+            } = options;
 
-            idsObj[item.id] = { num: num, previewFiles: previewFiles }
-        }
-
-        console.log('idsObj IDs sample:', idsObj);
-        return idsObj
-    };
-
-    function xhr_get(url, options = {}) {
-        const {
-            responseType = 'arraybuffer',
-            start = 0,
-            step = CONFIG.galleriesPerPage * 4,
-            fetchAll = false,
-            returnStatus = false,
-            getRange = false,
-        } = options;
-
-        return new Promise((resolve) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', url, true);
-            xhr.responseType = responseType;
+            const headers = {};
 
             if (responseType === "arraybuffer" && !fetchAll) {
                 const actualStart = start + step * STATE.fetchCount;
-                xhr.setRequestHeader("Range", `bytes=${actualStart}-${actualStart + step - 1}`);
+                headers["Range"] = `bytes=${actualStart}-${actualStart + step - 1}`;
             }
 
-            xhr.onload = () => {
-                if (xhr.status === 200 || xhr.status === 206) {
-                    if (getRange) {
-                        const contentRange = xhr.getResponseHeader("Content-Range");
-                        if (contentRange) {
-                            STATE.defaultRange = Number(contentRange.split('/').pop());
-                        }
-                    }
-                    if (returnStatus) resolve([xhr.response, xhr.status])
-                    resolve(xhr.response);
-                }
-            };
-            xhr.send();
-        });
-    }
-
-    async function fetch_gallery(idsList) {
-        const galleriesList = [];
-        const count = Math.min(idsList.length, CONFIG.galleriesPerPage);
-
-        const promises = [];
-        for (let i = 0; i < count; ++i) {
-            const galleryId = idsList[i];
-            const url = `//ltn.${STATE.domain}/galleryblock/${galleryId}.html`;
-            promises.push(xhr_get(url, { responseType: "text" }));
-        }
-
-        const results = await Promise.all(promises);
-        for (const r of results) {
-            galleriesList.push(r);
-        }
-
-        ++STATE.fetchCount;
-        return galleriesList;
-    }
-
-    async function parse_id_js(id) {
-        const res = {
-            title: [],
-            language: [],
-            type: [],
-            artists: [],
-            characters: [],
-            parodys: [],
-            tags: [],
-        }
-        const info = await fetch_id_js(id)
-        const isJapanese = navigator.language && navigator.language.startsWith('ja');
-
-        const title = {text: "", url: ""}
-        title.text = (info.japanese_title && isJapanese) ? info.japanese_title : info.title
-        title.url = info.galleryurl
-        res.title.push(title)
-
-        const language = {text: "", url: ""}
-        language.text = (info.language_localname && isJapanese) ? info.language_localname : info.language
-        language.url = info.language_url
-        res.language.push(language)
-
-        const type = {text: "", url: ""}
-        type.text = info.type
-        type.url = `/type/${info.type}-all.html`
-        res.type.push(type)
-
-        if (info.artists) {
-            info.artists.forEach(artist => {
-                res.artists.push({ text: artist.artist, url: artist.url })
-            })
-        }
-        if (info.characters) {
-            info.characters.forEach(character => {
-                res.characters.push({ text: character.character, url: character.url })
-            })
-        }
-        if (info.parodys) {
-            info.parodys.forEach(parody => {
-                res.parodys.push({ text: parody.parody, url: parody.url })
-            })
-        }
-        if (info.tags) {
-            info.tags.forEach(tag => {
-                res.tags.push({ text: tag.tag, url: tag.url })
-            })
-        }
-
-        return res
-    }
-
-    function generate_card(gallery, idsObj, divCardC) {
-        return new Promise((resolve) => {
-            function create_table(type, listOrItem, container, defaultText = 'N/A') {
-                const isList = Array.isArray(listOrItem) || listOrItem instanceof NodeList;
-                const list = isList ? Array.from(listOrItem) : [listOrItem];
-
-                const text = list.length ? list[0].textContent : defaultText;
-                const href = list.length ? list[0].href : "";
-
-                container.insertAdjacentHTML(
-                  'beforeend',
-                  `<tr><td>${type}</td><td>:</td><td><a href="${href}">${text}</a></td></tr>`
-                );
-                return list
-            };
-
-            function generate_tags(tags, container) {
-                if (tags.length === 0) {
-                    const aTag = document.createElement('a');
-                    aTag.className = 'BadgeBlue';
-                    aTag.textContent = 'N/A';
-                    container.appendChild(aTag);
-                } else {
-                    Array.from(tags).forEach(tag => {
-                        const clone = tag.cloneNode(true);
-                        if (clone.textContent === '...') return;
-
-                        clone.className = 'BadgeBlue';
-                        container.appendChild(clone);
-                    });
-                };
-            };
-
-            const htmlString = gallery;
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(htmlString, 'text/html');
-
-            const h1Element = doc.querySelector('h1.lillie a');
-            const url = h1Element?.href || '#'
-            const title = h1Element?.textContent || 'Unknown'
-            const picture = doc.querySelector('div[class$="-img1"] picture')
-            const tags = doc.querySelectorAll('td.relatedtags ul li a')
-            const seriesList = doc.querySelectorAll('td.series-list ul li a')
-            const language = doc.querySelector('table.dj-desc tbody tr:nth-child(3) td a') || { textContent: 'Unknown', href: '#' }
-            const type = doc.querySelector('table.dj-desc tbody tr:nth-child(2) td a') || { textContent: 'Unknown', href: '#' }
-            const artistList = doc.querySelectorAll('div.artist-list ul li a') || { textContent: 'Unknown', href: '#' }
-            const reNum = url.match(/.*-(\d+)\.html/);
-            const id = reNum?.[1];
-
-            const divCard = document.createElement("div")
-            divCard.className = "Card"
-
-            const divTableC = document.createElement("div")
-            divTableC.className = "CardTableContainer"
-
-            const aCardTitle = document.createElement("a")
-            aCardTitle.className = "CardTitle"
-            aCardTitle.href = url.replace("ltn.gold-usergeneratedcontent.net", "hitomi.la")
-
-            const table = document.createElement("table")
-
-            const aPage = document.createElement("a")
-            aPage.className = "page BadgeGrey"
-
-            const divTagC = document.createElement("div")
-            divTagC.className = "CardTagsContainer"
-
-            const divbottomC = document.createElement("div")
-            divbottomC.className = "BottomContainer"
-
-            // const img = document.createElement("img")
-            // const dpr = window.devicePixelRatio
-            // if (STATE.avif) {
-            //     let urls = picture.querySelector("source").getAttribute("data-srcset").split(",")
-            //     urls = urls.filter(x => x.endsWith(`${dpr}x`))
-            //     img.src = urls[0].replace(` ${dpr}x`, "")
-            // } else {
-            //     const urls = picture.querySelector("source").getAttribute("data-src").split(",")
-            //     urls = urls.filter(x => x.endsWith(`${dpr}x`))
-            //     img.src = urls[0].replace(` ${dpr}x`, "")
-            // }
-            // img.loading = "lazy"
-
-            picture.querySelectorAll("source").forEach(source => {
-                if (source.srcset) {
-                    source.srcset = source.srcset.replaceAll(
-                        "tn.hitomi.la",
-                        "tn.gold-usergeneratedcontent.net"
-                    );
-                }
-                if (source.dataset.srcset) {
-                    source.dataset.srcset = source.dataset.srcset.replaceAll(
-                        "tn.hitomi.la",
-                        "tn.gold-usergeneratedcontent.net"
-                    );
-                }
+            const response = await fetch(url, {
+                method: 'GET',
+                headers
             });
 
-            const img = picture.querySelector("img");
-            if (img) {
-                if (img.src) {
-                    img.src = img.src.replaceAll(
-                        "tn.hitomi.la",
-                        "tn.gold-usergeneratedcontent.net"
-                    );
-                }
-                if (img.dataset.src) {
-                    img.dataset.src = img.dataset.src.replaceAll(
-                        "tn.hitomi.la",
-                        "tn.gold-usergeneratedcontent.net"
-                    );
-                }
-            }
-
-            const aPic = document.createElement("a")
-            aPic.href = url
-            aPic.target = "_blank"
-
-            aPic.appendChild(picture)
-            divCard.appendChild(aPic)
-            divCardC.appendChild(divCard)
-            divCard.appendChild(aCardTitle)
-            divCard.appendChild(divTableC)
-            divTableC.appendChild(table)
-            divbottomC.appendChild(aPage)
-            divbottomC.appendChild(divTagC)
-            divCard.appendChild(divbottomC)
-
-            aCardTitle.textContent = title
-
-            const tableDict = {}
-            tableDict.language = create_table("language", language, table)
-            tableDict.type = create_table("type", type, table)
-            tableDict.artist = create_table("artist", artistList, table)
-            tableDict.series = create_table("series", seriesList, table)
-
-            pic_preview_listener(aPic, id, idsObj)
-            custom_viewer_listener(aCardTitle, picture, tableDict, id)
-
-            aPage.textContent = idsObj[id].num ? `${idsObj[id].num}p` : "N/A"
-            generate_tags(tags, divTagC)
-            resolve()
-        })
-    };
-
-    async function select_leaf(text) {
-        DataView.prototype.getUint64 = function(byteOffset, littleEndian) {
-            // split 64-bit number into two 32-bit (4-byte) parts
-            const left = this.getUint32(byteOffset, littleEndian);
-            const right = this.getUint32(byteOffset + 4, littleEndian);
-
-            // combine the two 32-bit values
-            const combined = littleEndian ? left + 2 ** 32 * right : 2 ** 32 * left + right;
-
-            if (!Number.isSafeInteger(combined))
-                console.warn(combined, 'exceeds MAX_SAFE_INTEGER. Precision may be lost');
-
-            return combined;
-        }
-
-        function decode_node(eightArray) {
-            let pos = 0;
-            let NODE = {
-                keys: [],
-                datas: [],
-                subNodeAddresses: [],
-            };
-
-            const view = new DataView(eightArray.buffer);
-            const numberOfKeys = view.getInt32(pos, false);
-            pos += 4;
-
-            let keys = [];
-            for (let i = 0; i < numberOfKeys; i++) {
-                const keySize = view.getInt32(pos, false);
-                if (!keySize || keySize > 32) {
-                    console.error("fatal: !keySize || keySize > 32");
-                    return;
-                }
-                pos += 4;
-                keys.push(eightArray.slice(pos, pos + keySize));
-                pos += keySize;
-            }
-
-            const numberOfDates = view.getInt32(pos, false);
-            pos += 4;
-
-            let datas = [];
-            for (let i = 0; i < numberOfDates; i++) {
-                const offset = view.getUint64(pos, false);
-                pos += 8;
-
-                const length = view.getInt32(pos, false);
-                pos += 4;
-
-                datas.push([offset, length]);
-            }
-
-            const B = 16;
-            const numberOfSubnodeAddresses = B + 1;
-
-            let subNodeAddresses = [];
-            for (let i = 0; i < numberOfSubnodeAddresses; i++) {
-                let subnodeAddress = view.getUint64(pos, false);
-                pos += 8;
-
-                subNodeAddresses.push(subnodeAddress);
-            }
-
-            NODE.keys = keys;
-            NODE.datas = datas;
-            NODE.subNodeAddresses = subNodeAddresses;
-            return NODE;
-        }
-
-        function compare_key(NODE, key) {
-            let i;
-            let cmpResult = -1;
-
-            function compare_arraybuffers(dv1, dv2) {
-                const top = Math.min(dv1.byteLength, dv2.byteLength);
-                for (let i = 0; i < top; i++) {
-                    if (dv1[i] < dv2[i]) {
-                        return -1;
-                    } else if (dv1[i] > dv2[i]) {
-                        return 1;
+            if (response.ok || response.status === 206) {
+                if (getRange) {
+                    const contentRange = response.headers.get("Content-Range");
+                    if (contentRange) {
+                        STATE.defaultRange = Number(contentRange.split('/').pop());
                     }
                 }
-                return 0;
-            };
-            function is_leaf() {
-                for (let i = 0; i < NODE.subNodeAddresses.length; i++) {
-                    if (NODE.subNodeAddresses[i]) {
-                        return 0;
-                    }
-                }
-                return 1;
-            };
 
-            for (i = 0; i < NODE.keys.length; i++) {
-                cmpResult = compare_arraybuffers(key, NODE.keys[i]);
-                if (cmpResult <= 0) {
-                    break;
-                }
-            }
-            return [!cmpResult, i, is_leaf()];
-        };
-
-        async function b_tree(NODE, key, indexUrl) {
-            let [there, where, isLeaf] = compare_key(NODE, key)
-            if (there) {
-                return NODE.datas[where];
-            } else if (isLeaf) {
-                return Error
-            }
-            if (NODE.subNodeAddresses[where] == 0) {
-                return Error
-            }
-            const bytesArray = await xhr_get(indexUrl, { start: NODE.subNodeAddresses[where], step: 464 })
-            const eightArray = new Uint8Array(bytesArray);
-            NODE = decode_node(eightArray)
-            return await b_tree(NODE, key, indexUrl)
-        }
-
-        async function index_load(options = {}) {
-            const {
-                url = undefined,
-                start = 0,
-                step = CONFIG.galleriesPerPage * 4,
-            } = options;
-            const inbuf = await xhr_get(url, { start: start + 4, step: step })
-            const eightArray = new Uint8Array(inbuf);
-            const view = new DataView(eightArray.buffer);
-            const totalBytes = view.byteLength;
-            const idsList = get_ids(totalBytes - 4, view)
-            return idsList
-        }
-
-        function random_access(idsList) {
-            const results = []
-            const count = Math.min(idsList.length, CONFIG.galleriesPerPage * (STATE.fetchCount + 1));
-
-            for (;STATE.randomUsed.size < count;) {
-                const idx = (Math.random() * idsList.length) | 0;
-                if (STATE.randomUsed.has(idx)) continue;
-                STATE.randomUsed.add(idx);
-
-                const galleryId = idsList[idx];
-                results.push(galleryId);
-            }
-            return results
-        }
-
-        async function fetch_term_data(term) {
-            let ids = [];
-            if (term.includes(':')) {
-                let language = 'all'
-                let [area, tag] = term.split(':');
-                
-                if (area === 'language') { language = tag; tag = 'index'; }
-                else if (area === 'female' || area === 'male') { tag = term; area = 'tag'; }
-                
-                const url = get_nozomi_url(area, tag, language);
-                ids = await nozomi_load({ url }); // STATE.indexObj
-            } else {
-                ids = await get_galleryids_for_keyword(term); // STATE.indexObj
-            }
-            return ids;
-        }
-
-        function get_nozomi_url(area, tag, language) {
-            const orderby = STATE.orderBy || 'date';
-            const prefix = 'n'; 
-            
-            if (area === 'language') {
-                return `//ltn.${STATE.domain}/${prefix}/${tag}-${language}.nozomi`;
-            }
-            if (orderby === 'random') {
-                return `//ltn.${STATE.domain}/${prefix}/${area}/${tag}-${language}.nozomi`;
-            }
-            if (orderby.includes(':')) {
-                const [sort, key] = orderby.split(':');
-                return `//ltn.${STATE.domain}/${prefix}/${area}/${sort}/${key}/${tag}-${language}.nozomi`;
-            }
-            return `//ltn.${STATE.domain}/${prefix}/${area}/${tag}-${language}.nozomi`; 
-        }
-
-        async function get_galleryids_for_keyword(term) {
-            const key = new Uint8Array(sha256.array(term).slice(0, 4));
-            const versionUrl = `//ltn.${STATE.domain}/galleriesindex/version?_=${Date.now()}.index`;
-
-            if (!(STATE.indexObj[versionUrl] && STATE.indexObj[versionUrl].length)) {
-                STATE.indexObj[versionUrl] = await xhr_get(versionUrl, { responseType: "text" });
-            }
-            const indexUrl = `//ltn.${STATE.domain}/galleriesindex/galleries.${STATE.indexObj[versionUrl]}.index`;
-            const dataUrl = `//ltn.${STATE.domain}/galleriesindex/galleries.${STATE.indexObj[versionUrl]}.data`;
-            
-            const arrayBuf = await xhr_get(indexUrl, { step: 464 });
-            const node = decode_node(new Uint8Array(arrayBuf));
-            const bytesList = await b_tree(node, key, indexUrl);
-            
-            const data = await index_load({ url: dataUrl, start: bytesList[0], step: bytesList[1] });
-            return data
-        }
-
-        async function fetch_unit_ids(term) {
-            if (term.includes('|')) {
-                const subTerms = term.split('|').filter(t => t.length > 0);
-                const idSets = await Promise.all(subTerms.map(t => fetch_term_data(t)));
-                const union = new Set();
-                for (const ids of idSets) {
-                    for (const id of ids) union.add(id);
-                }
-                return Array.from(union);
-            } else {
-                return await fetch_term_data(term);
-            }
-        }
-
-        if (STATE.indexObj[text] && STATE.indexObj[text].length) {
-            const res = STATE.indexObj[text]
-            const start = STATE.fetchCount * CONFIG.galleriesPerPage;
-            return res.slice(start, start + CONFIG.galleriesPerPage);
-        }
-
-        const terms = decodeURIComponent(text).replace(/^\?/, '').split(/\s+/);
-        const posTerms = [], negTerms = []
-        for (let idx = 0; idx < terms.length; idx++) {
-            let term = ubar2space(terms[idx]);
-
-            if (term === '|') {
-                if (idx > 0 && idx + 1 < terms.length) {
-                    const prev = ubar2space(terms[idx - 1]);
-                    const next = ubar2space(terms[idx + 1]);
-                    const combined = `${prev}|${next}`;
-                 
-                    if (posTerms.length && posTerms[posTerms.length - 1] === prev) posTerms.pop();
-                    if (negTerms.length && negTerms[negTerms.length - 1] === prev) negTerms.pop();
-                 
-                    posTerms.push(combined);
-                    idx++;
-                }
-                continue;
-            }
-
-            if (term.startsWith('-')) negTerms.push(term.slice(1));
-            else posTerms.push(term);
-        }
-
-        let results = null
-        if (posTerms.length === 0) {
-            results = await nozomi_load({ url: `//ltn.${STATE.domain}/n/index-all.nozomi` });
-        } else {
-            for (let i = 0; i < posTerms.length; i++) {
-                const ids = await fetch_unit_ids(posTerms[i]);
-                if (i === 0) {
-                    results = ids;
-                } else {
-                    const idSet = new Set(ids);
-                    results = results.filter(id => idSet.has(id));
-                }
-                if (results.length === 0) break;
-            }
-        }
-
-        for (const term of negTerms) {
-            if (results.length === 0) break;
-            const ids = await fetch_unit_ids(term);
-            const idSet = new Set(ids);
-            results = results.filter(id => !idSet.has(id));
-        }
-
-        STATE.resultsCount = results.length;
-        const isRandom = STATE.orderBy === "random";
-        
-        if (isRandom) {
-            return random_access(results);
-        } else {
-            results.sort((a, b) => b - a);
-        }
-
-        STATE.indexObj[text] = results
-
-        const start = STATE.fetchCount * CONFIG.galleriesPerPage;
-        return results.slice(start, start + CONFIG.galleriesPerPage);
-    }
-
-    function tag_to_badge(query, divContainer, actualInput, isOr = false) {
-        if (!query.length) return
-
-        let existingInput = actualInput.value.split(/\s+/)
-        if (!isOr && existingInput.includes(query)) return
-
-        const spanExists = [...divContainer.querySelectorAll("span")]
-            .some(span => span.textContent.trim() === query)
-
-        if (spanExists) return
-
-        if (query.includes(':')) {
-            const queryList = query.split(/:/)
-            let field = queryList[0], term = queryList[1], isNegative = query.startsWith('-')
-
-            const input = `<input class="BetweenInput" type="text" maxlength="0">`
-            const svg = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle-fill" viewBox="0 0 16 16">
-                    <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z"/>
-                </svg>
-            `;
-
-            const divTagC = document.createElement("div")
-            divTagC.className = "TagContainer"
-            divTagC.innerHTML = input
-
-            const span = document.createElement("span");
-            span.className = "BadgeGreen";
-            if (isNegative) span.className = "BadgeRed";
-            span.innerHTML = `${svg} ${field}:${space2ubar(term)}`;
-
-            divTagC.appendChild(span)
-
-            divContainer.insertBefore(divTagC, actualInput);
-        } else if (isOr) {
-            const input = `<input class="BetweenInput" type="text" maxlength="0">`
-
-            const divTagC = document.createElement("div")
-            divTagC.className = "TagContainer"
-            divTagC.innerHTML = input
-
-            const span = document.createElement("span");
-            span.textContent = "|"
-            span.style.color = "cyan"
-
-            divTagC.appendChild(span)
-
-            divContainer.insertBefore(divTagC, actualInput);
-        }
-        else {
-            actualInput.value += (actualInput.value ? " " : "") + query
-        }
-    }
-
-    async function get_search_suggestion(text, divSuggestionC, divSearchInput, actualInput) {
-        async function return_json(query, checkValid = false) {
-            let field = 'global', term = ubar2space(query), istag = false, jsonSuggestions = []
-
-            if (query.includes(':')) {
-                const sides = query.split(/:/);
-                field = sides[0];
-                term = sides[1];
-                istag = true
-            }
-            const chars = term.split('').map(i => encode_query(i))
-            let url = `//tagindex.hitomi.la/${field}`;
-            if (chars.length) {
-                url += `/${chars.join('/')}`;
-            }
-            url += '.json';
-
-            jsonSuggestions = await xhr_get(url, { responseType: "json" })
-            if (checkValid) {
-                let isValid = false;
-                if (!istag) return [jsonSuggestions[0], isValid];
-                
-                for (let i = 0; i < jsonSuggestions.length; i++) {
-                    const suggest = jsonSuggestions[i];
-                    if (suggest[0] === ubar2space(term) && suggest[2] === field) {
-                        isValid = true;
+                let data;
+                switch (responseType) {
+                    case 'arraybuffer':
+                        data = await response.arrayBuffer();
                         break;
-                    }
+                    case 'json':
+                        data = await response.json();
+                        break;
+                    case 'text':
+                        data = await response.text();
+                        break;
+                    case 'blob':
+                        data = await response.blob();
+                        break;
+                    default:
+                        data = await response.arrayBuffer();
                 }
-                return [jsonSuggestions[0], isValid];
-            }
-            return jsonSuggestions
-        }
 
-        function arrow_process(e) {
-            function apply_focus_class() {
-                suggestionsArray.forEach(a => a.classList.remove('SuggestionFocus'));
-                suggestionsArray[suggestionIndex].classList.add('SuggestionFocus');
+                if (returnStatus) return [data, response.status];
+                return data;
+            }
+        },
+        gallery: async function gallery(idsList) {
+            const galleriesList = [];
+            const count = Math.min(idsList.length, CONFIG.galleriesPerPage);
+
+            const promises = [];
+            for (let i = 0; i < count; ++i) {
+                const galleryId = idsList[i];
+                const url = `//ltn.${STATE.domain}/galleryblock/${galleryId}.html`;
+                promises.push(FETCH.get(url, { responseType: "text" }));
+            }
+
+            const results = await Promise.all(promises);
+            for (const r of results) {
+                galleriesList.push(r);
+            }
+
+            ++STATE.fetchCount;
+            return galleriesList;
+        },
+        nozomi: async function nozomi(options = {}) {
+            const {
+                url = `//ltn.${STATE.domain}/index-all.nozomi`,
+                step = CONFIG.galleriesPerPage * 4,
+                fetchAll = true,
+                getRange = false,
+            } = options;
+
+            if (STATE.indexObj[url] && fetchAll) {
+                return STATE.indexObj[url]
+            } else {
+                const bytesArray = await FETCH.get(url, { step: step, fetchAll: fetchAll, getRange: getRange });
+                const view = new DataView(bytesArray);
+                const totalBytes = view.byteLength;
+                STATE.indexObj[url] = UTIL.byte_to_id(totalBytes, view)
+                return STATE.indexObj[url]
+            }
+        },
+        gg: async function gg() {
+            return new Promise(async (resolve) => {
+                const url = 'https://ltn.gold-usergeneratedcontent.net/gg.js';
+                const response = await FETCH.get(url, {responseType: "text"});
+                
+                const scriptBody = `
+                    let gg; 
+                    ${response.replace("'use strict';", "")} 
+                    return gg;
+                `;
+
+                const extractGG = new Function(scriptBody);
+                STATE.gg = extractGG();
+                resolve()
+            })
+        }
+    }
+
+    const UTIL = {
+        debounce: function debounce(func, delay) {
+            let timeout;
+            return (...args) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func(...args), delay);
+            };
+        },
+        replace_smart_quotes: function replace_smart_quotes(query) {
+            const replaceChars = {
+                '“': '"',
+                '”': '"',
+                '‘': "'",
+                '’': "'",
+                '–': '-',
+                '—': '-',
+            };
+            for (const [key, value] of Object.entries(replaceChars)) {
+                query = query.split(key).join(value);
+            }
+            return query;
+        },
+        encode_query: function encode_query(query) {
+            const replaceChars = {
+                ' ': '_',
+                '/': 'slash',
+                '.': 'dot'
             };
 
-            const suggestionsArray = Array.from(divSuggestionC.querySelectorAll('a'));
-            const max = suggestionsArray.length - 1;
-            if (suggestionsArray.length === 0) return;
-
-            if ((e.key === 'Tab' && e.shiftKey) || e.key === 'ArrowUp') {
-                e.preventDefault();
-                if (suggestionIndex <= 0) suggestionIndex = max;
-                else suggestionIndex--;
-                apply_focus_class();
+            for (const [key, value] of Object.entries(replaceChars)) {
+                query = query.split(key).join(value);
             }
-
-            else if (e.key === 'Tab' || e.key === 'ArrowDown') {
-                e.preventDefault();
-                if (suggestionIndex >= max) suggestionIndex = 0;
-                else suggestionIndex++;
-                apply_focus_class();
+            return query;
+        },
+        save_to_localstorage: function save_to_localstorage(SaveDefQButton, key, text = "") {
+            function temp_ui_update(SaveDefQButton) {
+                SaveDefQButton.innerText = "saved!";
+                setTimeout(() => {
+                    SaveDefQButton.innerText = "Save";
+                }, 1000);
             }
-
-            else if (e.key === 'Enter') {
-                // suggestionIndexが初期値（-1など）で何も選択されていない場合の考慮
-                if (suggestionIndex >= 0 && suggestionIndex < suggestionsArray.length) {
-                    e.preventDefault();
-                    suggestionsArray[suggestionIndex].click();
-                    suggestionIndex = -1;
-                }
-            }
-        };
-
-        const inputList = text.split(/\s+/)
-        let newInputList = [], negList = [], posList = [], isNegative = false, isOr = false
-        inputList.forEach(term => {
-            if (/^-/.test(term)) {
-                term = term.replace(/^-/, "")
-                negList.push(term)
-                isNegative = true
-            } else {
-                posList.push(term)
-            }
-            newInputList.push(term)
-        })
-
-        if (newInputList.length >= 2) {
-            const editedList = newInputList.slice(0, newInputList.length - 1)
-            for (let value of editedList) {
-                let [suggestions, boolSuccess] = await return_json(value, true)
-                if (!boolSuccess) return
-
-                let query = `${suggestions[2]}:${suggestions[0]}`
-                query = negList.includes(query) ? `-${query}` : query
-                tag_to_badge(query, divSearchInput, actualInput)
-                actualInput.value = (actualInput.value).replace(`${value} `, "")
-                if (query.startsWith("-")) actualInput.value = (actualInput.value).replace("-", "")
-            }
-        }
-
-        const namespaces = ['artist', 'group', 'type', 'character', 'series', 'tag', 'female', 'male', 'language'];
-
-        const validNS = new Set()
-        namespaces.forEach(ns => {
-            const isHalfLonger = (ns.length / 2) <= text.length
-            if (isHalfLonger && ns.includes(text)) validNS.add(ns)
-        })
-
-        let lastInput = newInputList.at(-1);
-        if (lastInput.includes("|")) isOr = true; lastInput = lastInput.replace("|", "")
-        const suggestions = await return_json(lastInput)
-
-        Array.from(validNS).forEach(ns => {
-            suggestions.unshift([ns, 0, "type", true])
-        })
-
-        const re = new RegExp(ubar2space(lastInput), 'gi');
-
-        let suggestionIndex = -1;
-        suggestions.forEach(suggestion => {
-            const aS = document.createElement("a")
-            const spanStext = document.createElement("span")
-            const spanSarea = document.createElement("span")
-
-            aS.className = "Suggestion"
-            spanStext.className = "SuggestionText"
-            spanSarea.className = "SuggestionArea"
-
-            const finalStr = suggestion[0].replace(re, function(str) { return '<strong>' + str + '</strong>' });
-
-            spanStext.innerHTML = finalStr;
-            spanSarea.textContent = suggestion[2]
-
-            aS.appendChild(spanStext)
-            aS.appendChild(spanSarea)
-            divSuggestionC.appendChild(aS)
-
-            aS.addEventListener('click', async function() {
-                let query = `${suggestion[2]}:${suggestion[0]}`;
-                query = negList.includes(query) ? `-${query}` : query
-
-                divSuggestionC.textContent = "";
-
-                if (suggestion[3]) {
-                    actualInput.value = `${suggestion[0]}:`
-                    await get_search_suggestion(`${suggestion[0]}:`, divSuggestionC, divSearchInput, actualInput)
+            if (key === STORAGE.defaultQueryKey) {
+                if (text.length) {
+                    CONFIG.defaultQuery = `${text} `
+                    localStorage.setItem(key, JSON.stringify(`${text} `))
+                    document.querySelector(`#${STORAGE.defaultQueryKey}`).value = `${text} ` 
                 } else {
-                    divSuggestionC.style.display = 'none';
-                    if (isOr) {
-                        tag_to_badge("|", divSearchInput, actualInput, true)
-                    }
-                    tag_to_badge(query, divSearchInput, actualInput)
-                    actualInput.value = ''
+                    CONFIG.defaultQuery = text
+                    localStorage.setItem(key, JSON.stringify(text))
                 }
-
-                actualInput.focus();
-                divSearchInput.scrollLeft = divSearchInput.scrollWidth;
-                divSearchInput.removeEventListener('keydown', arrow_process)
-                suggestionIndex = -1
-            });
-        })
-        const rect = divSearchInput.getBoundingClientRect();
-        divSuggestionC.style.top = rect.top - 7 + 'px';
-        divSuggestionC.style.width = rect.width + 'px';
-
-        divSearchInput.removeEventListener('keydown', arrow_process)
-        divSearchInput.addEventListener('keydown', arrow_process)
-    }
-
-    function get_search_input_text(divSearchInput, actualInput, shouldDefQuery = false) {
-        function clean_text(text) {
-            text = replace_smart_quotes(text)
-            text = text.toLowerCase().trim()
-            text = wrap2space(text)
-            return text
-        }
-        function merge_text(text) {
-            const set = new Set()
-            text.split(/\s+/).forEach(query => {
-                if (!query.length) return
-                set.add(query)
-            })
-            const res = Array.from(set).join(' ')
-            return res
-        }
-        let tagQuery = "", inputQuery = "", res = ""
-        const badges = divSearchInput.querySelectorAll('span');
-        badges.forEach(badge => {
-            tagQuery += clean_text(badge.textContent) + " ";
-        });
-        inputQuery = clean_text(actualInput.value)
-
-        if (shouldDefQuery) res = merge_text(`${tagQuery} ${inputQuery} ${clean_text(CONFIG.defaultQuery)}`)
-        else res = merge_text(`${tagQuery} ${inputQuery}`)
-
-        return res
-    }
-
-    function search_post_process(divSearchInput, actualInput) {
-        STATE.fetchCount = 0
-        STATE.randomUsed = new Set()
-        STATE.term = get_search_input_text(divSearchInput, actualInput, true)
-    }
-
-    async function load(aResCount, divCardC, text = STATE.term) {
-        function create_page_navigation() {
-            pageContainers.forEach(pageContainer => {
-                let maxPage = 0
-                const pages = [], range = 3;
-
-                if (STATE.resultsCount) {
-                    maxPage = Math.ceil(STATE.resultsCount / CONFIG.galleriesPerPage);
-                } else if (STATE.defaultRange) {
-                    const res = STATE.defaultRange / 4
-                    maxPage = Math.ceil(res / CONFIG.galleriesPerPage);
-                }
-
-                pageContainer.innerHTML = '';
-
-                if (!(STATE.fetchCount + range >= maxPage)) {
-                    if (STATE.fetchCount >= 2) {
-                        pages.push(1)
-                        pages.push('...')
-                        for (let i = -1; i <= range - 1; i++) {
-                            if (STATE.fetchCount + i >= maxPage) break
-                            if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
-                                pages.push(STATE.fetchCount + i);
-                            }
-                        }
-                    } else {
-                        for (let i = 0; i <= range; i++) {
-                            if (STATE.fetchCount + i >= maxPage) break
-                            if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
-                                pages.push(STATE.fetchCount + i);
-                            }
-                        }
-                    }
-
-                    pages.push('...')
-                    pages.push(maxPage)
-                } else {
-                    pages.push(1)
-                    pages.push('...')
-                    for (let i = -range; i <= 0; i++) {
-                        if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
-                            pages.push(STATE.fetchCount + i);
-                        }
-                    }
-                }
-
-                pages.forEach(p => {
-                    const a = document.createElement('a');
-                    a.textContent = p;
-                    if (p === STATE.fetchCount) a.style.color = 'var(--dimWhite)';
-                    a.onclick = async (e) => {
-                        e.preventDefault();
-                        if (p === STATE.fetchCount || STATE.fetching) return;
-
-                        STATE.fetchCount = p - 1;
-                        divCardC.innerHTML = "";
-                        
-                        await load(aResCount, divCardC);
-                    };
-                    pageContainer.appendChild(a);
-                })
-            })
-        }
-
-        STATE.fetching = true;
-        if (STATE.fetchCount === 0) divCardC.innerHTML = "";
-
-        let galleriesList = [], idsObj = {}, trial = 0;
-        while (trial < CONFIG.trialLimit) {
-            let idsList = [];
-            if (!text.length) {
-                idsList = await nozomi_load({ fetchAll: false, getRange: true });
-                STATE.resultsCount = 0;
-                aResCount.textContent = '';
             } else {
-                idsList = await select_leaf(text);
-            }
-
-            idsObj = await filter_contents(idsList);
-            galleriesList = await fetch_gallery(Object.keys(idsObj).reverse());
-
-            if (galleriesList.length > 0) break;
-
-            trial++; STATE.indexObj = {};
-            console.warn(`Retry attempt: ${trial}`);
-            await new Promise(resolve => setTimeout(resolve, CONFIG.debounceTime));
-        }
-
-        if (galleriesList.length === 0) {
-            alert("error: data not found");
-            return;
-        }
-
-        const fragment = document.createDocumentFragment();
-        const promises = galleriesList.map(gallery => generate_card(gallery, idsObj, fragment));
-        
-        if (STATE.resultsCount) {
-            aResCount.textContent = `${String(STATE.resultsCount)} Results`;
-        }
-
-        create_page_navigation()
-
-        await Promise.all(promises);
-        divCardC.appendChild(fragment);
-
-        STATE.fetching = false
-        STATE.trial = 0
-    }
-
-    function search_tag_listener(divSearchInput, actualInput, divInputC, divSuggestionC, SaveDefQButton, isDefaultQuery = false) {
-        divSearchInput.addEventListener('click', function(event) {
-            if (event.target.closest('.bi-x-circle-fill')) {
-                event.target.closest('.TagContainer').remove();
-                if (isDefaultQuery) {
-                    const text = get_search_input_text(divSearchInput, actualInput)
-                    save_to_localstorage(SaveDefQButton, STORAGE.defaultQueryKey, text) // CONFIG.defaultQuery
-                }
-            }
-            divSuggestionC.textContent = "";
-            divSuggestionC.style.display = 'none';
-        });
-
-        divSearchInput.addEventListener('keydown', function(e) {
-            const currentInput = e.target;
-
-            if (currentInput.tagName !== 'INPUT') return;
-
-            const inputsArray = Array.from(divSearchInput.querySelectorAll('input'));
-            const currentIndex = inputsArray.indexOf(currentInput);
-
-            const isSelectionEmpty = currentInput.selectionStart === currentInput.selectionEnd;
-
-            if (e.key === 'Backspace' && isSelectionEmpty && currentInput.selectionStart === 0) {
-                let tagToRemove = null;
-
-                if (currentInput.classList.contains('ActualInput')) {
-                    const tags = divSearchInput.querySelectorAll('.TagContainer');
-                    if (tags.length > 0) {
-                        tagToRemove = tags[tags.length - 1];
-                    }
-                } else {
-                    const currentContainer = currentInput.closest('.TagContainer');
-                    if (currentContainer && currentContainer.previousElementSibling) {
-                        tagToRemove = currentContainer.previousElementSibling;
-                    }
-                }
-
-                if (tagToRemove && tagToRemove.classList.contains('TagContainer')) {
-                    e.preventDefault();
-
-                    const badge = tagToRemove.querySelector('span');
-                    let extractedText = badge.outerText;
-
-                    tagToRemove.remove();
-
-                    const originalValue = actualInput.value;
-
-                    actualInput.value = extractedText + originalValue;
-
-                    actualInput.focus();
-                    actualInput.setSelectionRange(extractedText.length, extractedText.length);
-                }
-            }
-
-            else if (e.key === 'ArrowLeft' && isSelectionEmpty && currentInput.selectionStart === 0) {
-                e.preventDefault();
-                let nextIndex = currentIndex - 1;
-                if (nextIndex < 0) nextIndex = inputsArray.length - 1;
-
-                const targetInput = inputsArray[nextIndex];
-                targetInput.focus();
-                const len = targetInput.value.length;
-                targetInput.setSelectionRange(len, len);
-            }
-
-            else if (e.key === 'ArrowRight' && isSelectionEmpty && currentInput.selectionStart === currentInput.value.length) {
-                e.preventDefault();
-                let nextIndex = currentIndex + 1;
-                if (nextIndex >= inputsArray.length) nextIndex = 0;
-
-                const targetInput = inputsArray[nextIndex];
-                targetInput.focus();
-                const len = targetInput.value.length;
-                targetInput.setSelectionRange(len, len);
-            }
-        });
-    }
-
-    function debounce(func, delay) {
-        let timeout;
-        return (...args) => {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func(...args), delay);
-        };
-    }
-
-    function ubar2space(query) {
-        query = query.replace(/_/g, " ")
-        return query;
-    }
-
-    function wrap2space(query) {
-        query = query.replace(/\n/g, " ")
-        return query;
-    }
-
-    function space2ubar(query) {
-        query = query.replace(/\s/g, "_")
-        return query;
-    }
-
-    function replace_smart_quotes(query) {
-        const replaceChars = {
-            '“': '"',
-            '”': '"',
-            '‘': "'",
-            '’': "'",
-            '–': '-',
-            '—': '-',
-        };
-        for (const [key, value] of Object.entries(replaceChars)) {
-            query = query.split(key).join(value);
-        }
-        return query;
-    }
-
-    function encode_query(query) {
-        const replaceChars = {
-            ' ': '_',
-            '/': 'slash',
-            '.': 'dot'
-        };
-
-        for (const [key, value] of Object.entries(replaceChars)) {
-            query = query.split(key).join(value);
-        }
-        return query;
-    }
-
-    function search_listener(searchButton, divSearchInput, divSuggestionC, actualInput, aResCount, divCardC) {
-        let isFocust;
-        searchButton.addEventListener('click', async function() {
-            search_post_process(divSearchInput, actualInput) // STATE.fetchCount, STATE.randomUsed
-            await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
-        });
-        divSearchInput.addEventListener('keydown', async function(e) {
-            if (e.key !== 'Enter') return
-            for (const suggest of Array.from(divSuggestionC.children)) {
-                if (suggest.classList.contains('SuggestionFocus')) {
-                    isFocust = true;
-                    break;
-                }
-            }
-
-            if (!isFocust) {
-                searchButton.click()
-            }
-            isFocust = false;
-        })
-    }
-
-    function order_listener(optionOrderByDropdown) {
-        optionOrderByDropdown.forEach(option => {
-            option.addEventListener('click', function() {
-                const list = option.text.toLowerCase().replace(/:/g, "").split(/\s+/)
-                STATE.orderBy = `${list[0]}:${list[1]}`
-                if (list[1] == "added") STATE.orderBy = ""
-                else if (list[0] == "random") STATE.orderBy = "random"
-            })
-        })
-    }
-
-    function save_to_localstorage(SaveDefQButton, key, text = "") {
-        function temp_ui_update(SaveDefQButton) {
-            SaveDefQButton.innerText = "saved!";
-            setTimeout(() => {
-                SaveDefQButton.innerText = "Save";
-            }, 1000);
-        }
-        if (key === STORAGE.defaultQueryKey) {
-            if (text.length) {
-                CONFIG.defaultQuery = `${text} `
-                localStorage.setItem(key, JSON.stringify(`${text} `))
-                document.querySelector(`#${STORAGE.defaultQueryKey}`).value = `${text} ` 
-            } else {
-                CONFIG.defaultQuery = text
                 localStorage.setItem(key, JSON.stringify(text))
             }
-        } else {
-            localStorage.setItem(key, JSON.stringify(text))
-        }
-        temp_ui_update(SaveDefQButton)
-    }
+            temp_ui_update(SaveDefQButton)
+        },
+        extract_tag: function extract_tag(href) {
+            const match = href.match(/\/tag\/(.*)-all.html/) || href.match(/.*%20(.*)/);
+            return encode_query(decodeURIComponent(match[1]));
+        },
+        extract_table: function extract_table(a) {
+            let match;
+            const hrefValue = a.getAttribute('href');
 
-    function extract_tag(href) {
-        const match = href.match(/\/tag\/(.*)-all.html/) || href.match(/.*%20(.*)/);
-        return encode_query(decodeURIComponent(match[1]));
-    }
-
-    function extract_table(a) {
-        let match;
-        const hrefValue = a.getAttribute('href');
-
-        match = hrefValue.match(/.*\/index-(.*)\.html$/); // eg, language:japanese
-        if (match) {
-            return 'language:' + match[1];
-        }
-
-        match = hrefValue.match(/.*\/(.*)\/(.*)-all\.html$/); // eg, doujinshi:blue_archive
-        if (match) {
-            return match[1] + ':' + encode_query(decodeURIComponent(match[2]));
-        }
-        console.log('No match found for href:', hrefValue);
-        return null;
-    }
-
-    function picker_listener(eye, add, ex, divDefaultInput, defaultActualInput, eyeText, eyeContainer, SaveDefQButton) {
-        STATE.isPickerActive = false;
-        let selectedTag = [];
-        let selectedType = [];
-
-        defaultActualInput.addEventListener('keydown', function(e) {
-            if (e.key !== 'Enter') return
-            SaveDefQButton.click()
-        })
-
-        SaveDefQButton.addEventListener('click', () => {
-            const text = get_search_input_text(divDefaultInput, defaultActualInput)
-            save_to_localstorage(SaveDefQButton, STORAGE.defaultQueryKey, text) // CONFIG.defaultQuery
-        })
-
-        eyeContainer.addEventListener('click', () => {
-            if (STATE.isPickerActive) {
-                eyeContainer.style.backgroundColor = 'transparent';
-                eyeText.style.display = 'none';
-                eye.style.fill = 'white';
-            } else {
-                eyeContainer.style.backgroundColor = 'yellow';
-                eyeText.style.display = 'block';
-                eyeText.style.color = 'black';
-                eye.style.fill = 'black';
+            match = hrefValue.match(/.*\/index-(.*)\.html$/); // eg, language:japanese
+            if (match) {
+                return 'language:' + match[1];
             }
 
-            if (STATE.isPickerActive) {
-                selectedTag.forEach(tag => {
-                    tag.style.border = ""
-                })
-                selectedType.forEach(type => {
-                    type.style.border = ""
-                })
-                selectedTag = []; selectedType = [];
+            match = hrefValue.match(/.*\/(.*)\/(.*)-all\.html$/); // eg, doujinshi:blue_archive
+            if (match) {
+                return match[1] + ':' + encode_query(decodeURIComponent(match[2]));
             }
-            STATE.isPickerActive = !STATE.isPickerActive;
-        })
-
-        document.addEventListener('click', async (e) => {
-            const tag = e.target.closest('.BadgeBlue');
-            const type = e.target.closest('table tr td a');
-            if (tag) {
-                if (!STATE.isPickerActive) {
-                    const tagText = extract_tag(tag.href);
-                    tag_to_badge(tagText, divSearchInput, actualInput);
-
-                    if (!CONFIG.incrementTag) {
-                        searchButton.click();
-                    }
-                    return
+            console.log('No match found for href:', hrefValue);
+            return null;
+        },
+        check_avif_support: function check_avif_support() {
+            return new Promise(async (resolve) => {
+                try {
+                    const img = new Image();
+                    img.src = "data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADrbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAAAAAAAOcGl0bQAAAAAAAQAAAB5pbG9jAAAAAEQAAAEAAQAAAAEAAAETAAAAFwAAAChpaW5mAAAAAAABAAAAGmluZmUCAAAAAAEAAGF2MDFDb2xvcgAAAABqaXBycAAAAEtpcGNvAAAAFGlzcGUAAAAAAAAAAQAAAAEAAAAQcGl4aQAAAAADCAgIAAAADGF2MUOBAAwAAAAAE2NvbHJuY2x4AAEADQAGgAAAABdpcG1hAAAAAAAAAAEAAQQBAoMEAAAAH21kYXQSAAoFGAAGBCAyDBQAAwwwxAAAeUut9g==";
+                    await img.decode();
+                    STATE.avif = true;
+                } catch {
+                    STATE.avif = false;
                 }
+                resolve()
+            })
+        },
+        byte_to_id: function byte_to_id(totalBytes, view) {
+            const idsList = []
+            for (let i = 0; i < totalBytes; i += 4) {
+                const id = view.getUint32(i, false);
+                idsList.push(id)
+            };
+            return idsList
+        },
+        filter_contents: function filter_contents(idJsList) {
+            return idJsList.filter(idJs => {
+                const num = idJs.pictures.length;
 
-
-                e.preventDefault();
-
-                if (tag.style.border === "") {
-                    tag.style.border = "solid yellow";
-                    selectedTag.push(tag);
-                } else {
-                    tag.style.border = "";
-                    selectedTag = selectedTag.filter(item => item !== tag);
+                if (CONFIG.minPage >= 1 && num < CONFIG.minPage) {
+                    return false;
                 }
-            } else if (type) {
-                if (!STATE.isPickerActive) {
-                    if (e.target.matches('a')) {
-                        const typeText = extract_table(type);
-                        tag_to_badge(typeText, divSearchInput, actualInput)
-                        if (!CONFIG.incrementTag) {
-                            searchButton.click()
-                        }
-                    }
+                if (CONFIG.maxPage >= 1 && CONFIG.maxPage < num) {
+                    return false;
                 }
-
-                e.preventDefault();
-
-                if (type.style.border === "") {
-                    type.style.border = "solid yellow"
-                    selectedType.push(type)
+                if (CONFIG.filterNA.artist && !idJs.artists.length) {
+                    return false;
                 }
-                else if (type.style.border === "solid yellow") {
-                    type.style.border = ""
-                    selectedType = selectedType.filter(item => item !== type);
+                if (CONFIG.filterNA.tag && !idJs.tags.length) {
+                    return false;
                 }
-            }
-        });
-
-        add.addEventListener('click', () => {
-            if (selectedTag.length) {
-                selectedTag.forEach(tag => {
-                    const tagText = extract_tag(tag.href);
-                    if (!CONFIG.defaultQuery.includes(tagText)) {
-                        tag_to_badge(tagText, divDefaultInput, defaultActualInput)
-                    }
-                })
-                SaveDefQButton.click()
-            } 
-            if (selectedType.length) {
-                selectedType.forEach(type => {
-                    const typeText = extract_table(type);
-                    if (!CONFIG.defaultQuery.includes(typeText)) {
-                        tag_to_badge(typeText, divDefaultInput, defaultActualInput)
-                    }
-                })
-                SaveDefQButton.click()
-            }
-        });
-        ex.addEventListener('click', () => {
-            if (selectedTag) {
-                selectedTag.forEach(tag => {
-                    const tagText = extract_tag(tag.href);
-                    const excludeText = `-${tagText}`;
-                    if (!CONFIG.defaultQuery.includes(excludeText)) {
-                        tag_to_badge(excludeText, divDefaultInput, defaultActualInput)
-                    }
-                })
-                SaveDefQButton.click()
-            } 
-            if (selectedType) {
-                selectedType.forEach(type => {
-                    const typeText = extract_table(type);
-                    const excludeText = `-${typeText}`;
-                    if (!CONFIG.defaultQuery.includes(excludeText)) {
-                        tag_to_badge(excludeText, divDefaultInput, defaultActualInput)
-                    }
-                })
-                SaveDefQButton.click()
-            }
-        });
-    }
-
-    function suggestion_listener(actualInput, divSuggestionC, divSearchInput) {
-        let requestCounter = 0;
-
-        actualInput.addEventListener('input', debounce(async function() {
-            document.querySelectorAll("div.SuggestionContainer").forEach(elem => {
-                if (elem !== divSuggestionC) {
-                    elem.style.display = 'none';
-                }
+                return true;
             });
-            divSuggestionC.textContent = "";
-            const text = actualInput.value;
-
-            const currentRequestId = ++requestCounter;
-
-            await get_search_suggestion(text, divSuggestionC, divSearchInput, actualInput);
-
-            if (currentRequestId !== requestCounter) return;
-
-            if (divSuggestionC.children.length > 0) {
-                divSuggestionC.style.display = 'block';
-            } else {
-                divSuggestionC.style.display = 'none';
+        },
+        decrypt_picture: function decrypt_picture(image, dir = undefined, ext = undefined, base = "tn") {
+            if (!(dir && ext)) {
+                dir = STATE.avif ? "avifsmalltn" : "webpsmalltn";
+                ext = STATE.avif ? "avif" : "webp";
             }
 
-        }, CONFIG.debounceTime));
-    }
-
-    function get_preview_image(fileDict = {}) {
-        function get_hitomi_url(image, dir, ext, base = "tn") {
             ext = ext || dir || image.name.split('.').pop();
             
             let pathDir = '', fullPath = '', subdomain = '', url = '';
@@ -1383,499 +347,558 @@
 
             return url.replace(/\/\/..?\.(?:gold-usergeneratedcontent\.net|hitomi\.la)\//, '//' + subdomain + '.' + STATE.domain + '/');
         }
-        if (!Object.keys(fileDict).length) return
-
-        const format = STATE.avif ? "avif" : "webp";
-        const dir = STATE.avif ? "avifsmalltn" : "webpsmalltn";
-        const url = get_hitomi_url(fileDict, dir, format);
-        return url
     }
 
-    function pic_preview_listener(pic, id, idsObj) {
-        async function updateDisplay(index, pic, files) {
-            function prefetchImage(url) {
-                if (!url) return;
-                const img = new Image();
-                img.decoding = "async";
-                img.loading = "eager";
-                img.src = url;
-            }
-
-            if (index < 0 || index >= files.length) return;
-
-            const file = files[index];
-            const picture = pic.querySelector("picture")
-            const img = document.createElement("img")
-
-            picture.innerHTML = ""
-            picture.appendChild(img)
-
-            const url = get_preview_image(file);
-            if (url) img.src = url;
-
-            [1, -1].forEach(offset => {
-                const nextIdx = (index + offset + files.length) % files.length;
-                const nextFile = files[nextIdx];
-                const nextUrl = get_preview_image(nextFile);
-                prefetchImage(nextUrl);
+    const LISTENER = {
+        search: function search(searchButton, divSearchInput, divSuggestionC, actualInput, aResCount, divCardC) {
+            let isFocust;
+            searchButton.addEventListener('click', async function() {
+                search_post_process(divSearchInput, actualInput)
+                await load(aResCount, divCardC)
             });
-        }
+            divSearchInput.addEventListener('keydown', async function(e) {
+                if (e.key !== 'Enter') return
+                for (const suggest of Array.from(divSuggestionC.children)) {
+                    if (suggest.classList.contains('SuggestionFocus')) {
+                        isFocust = true;
+                        break;
+                    }
+                }
 
-        let currentIndex = 0;
-        pic.addEventListener('click', async (e) => {
-            e.preventDefault();
+                if (!isFocust) {
+                    searchButton.click()
+                }
+                isFocust = false;
+            })
+        },
+        order: function order(optionOrderByDropdown) {
+            optionOrderByDropdown.forEach(option => {
+                option.addEventListener('click', function() {
+                    const list = option.text.toLowerCase().replace(/:/g, "").split(/\s+/)
+                    STATE.orderBy = `${list[0]}:${list[1]}`
+                    if (list[1] == "added") STATE.orderBy = ""
+                    else if (list[0] == "random") STATE.orderBy = "random"
+                })
+            })
+        },
+        picker: function picker(eye, add, ex, divDefaultInput, defaultActualInput, eyeText, eyeContainer, SaveDefQButton) {
+            STATE.isPickerActive = false;
+            let selectedTag = [];
+            let selectedType = [];
 
-            const files = idsObj[id].previewFiles;
-            const info = await fetch_id_js(id)
-            const step = Math.round(info.files.length / CONFIG.picPreviewPerPage)
-            for (let i = 0; i < info.files.length; i += step) {
-                files.push(info.files[i])
+            defaultActualInput.addEventListener('keydown', function(e) {
+                if (e.key !== 'Enter') return
+                SaveDefQButton.click()
+            })
+
+            SaveDefQButton.addEventListener('click', () => {
+                const text = get_search_input_text(divDefaultInput, defaultActualInput)
+                save_to_localstorage(SaveDefQButton, STORAGE.defaultQueryKey, text)
+            })
+
+            eyeContainer.addEventListener('click', () => {
+                if (STATE.isPickerActive) {
+                    eyeContainer.style.backgroundColor = 'transparent';
+                    eyeText.style.display = 'none';
+                    eye.style.fill = 'white';
+                } else {
+                    eyeContainer.style.backgroundColor = 'yellow';
+                    eyeText.style.display = 'block';
+                    eyeText.style.color = 'black';
+                    eye.style.fill = 'black';
+                }
+
+                if (STATE.isPickerActive) {
+                    selectedTag.forEach(tag => {
+                        tag.style.border = ""
+                    })
+                    selectedType.forEach(type => {
+                        type.style.border = ""
+                    })
+                    selectedTag = []; selectedType = [];
+                }
+                STATE.isPickerActive = !STATE.isPickerActive;
+            })
+
+            document.addEventListener('click', async (e) => {
+                const tag = e.target.closest('.BadgeBlue');
+                const type = e.target.closest('table tr td a');
+                if (tag) {
+                    if (!STATE.isPickerActive) {
+                        const tagText = extract_tag(tag.href);
+                        tag_to_badge(tagText, divSearchInput, actualInput);
+
+                        if (!CONFIG.incrementTag) {
+                            searchButton.click();
+                        }
+                        return
+                    }
+
+
+                    e.preventDefault();
+
+                    if (tag.style.border === "") {
+                        tag.style.border = "solid yellow";
+                        selectedTag.push(tag);
+                    } else {
+                        tag.style.border = "";
+                        selectedTag = selectedTag.filter(item => item !== tag);
+                    }
+                } else if (type) {
+                    if (!STATE.isPickerActive) {
+                        if (e.target.matches('a')) {
+                            const typeText = extract_table(type);
+                            tag_to_badge(typeText, divSearchInput, actualInput)
+                            if (!CONFIG.incrementTag) {
+                                searchButton.click()
+                            }
+                        }
+                    }
+
+                    e.preventDefault();
+
+                    if (type.style.border === "") {
+                        type.style.border = "solid yellow"
+                        selectedType.push(type)
+                    }
+                    else if (type.style.border === "solid yellow") {
+                        type.style.border = ""
+                        selectedType = selectedType.filter(item => item !== type);
+                    }
+                }
+            });
+
+            add.addEventListener('click', () => {
+                if (selectedTag.length) {
+                    selectedTag.forEach(tag => {
+                        const tagText = extract_tag(tag.href);
+                        if (!CONFIG.defaultQuery.includes(tagText)) {
+                            tag_to_badge(tagText, divDefaultInput, defaultActualInput)
+                        }
+                    })
+                    SaveDefQButton.click()
+                } 
+                if (selectedType.length) {
+                    selectedType.forEach(type => {
+                        const typeText = extract_table(type);
+                        if (!CONFIG.defaultQuery.includes(typeText)) {
+                            tag_to_badge(typeText, divDefaultInput, defaultActualInput)
+                        }
+                    })
+                    SaveDefQButton.click()
+                }
+            });
+            ex.addEventListener('click', () => {
+                if (selectedTag) {
+                    selectedTag.forEach(tag => {
+                        const tagText = extract_tag(tag.href);
+                        const excludeText = `-${tagText}`;
+                        if (!CONFIG.defaultQuery.includes(excludeText)) {
+                            tag_to_badge(excludeText, divDefaultInput, defaultActualInput)
+                        }
+                    })
+                    SaveDefQButton.click()
+                } 
+                if (selectedType) {
+                    selectedType.forEach(type => {
+                        const typeText = extract_table(type);
+                        const excludeText = `-${typeText}`;
+                        if (!CONFIG.defaultQuery.includes(excludeText)) {
+                            tag_to_badge(excludeText, divDefaultInput, defaultActualInput)
+                        }
+                    })
+                    SaveDefQButton.click()
+                }
+            });
+        },
+        suggestion: function suggestion(actualInput, divSuggestionC, divSearchInput) {
+            let requestCounter = 0;
+
+            actualInput.addEventListener('input', debounce(async function() {
+                document.querySelectorAll("div.SuggestionContainer").forEach(elem => {
+                    if (elem !== divSuggestionC) {
+                        elem.style.display = 'none';
+                    }
+                });
+                divSuggestionC.textContent = "";
+                const text = actualInput.value;
+
+                const currentRequestId = ++requestCounter;
+
+                await get_search_suggestion(text, divSuggestionC, divSearchInput, actualInput);
+
+                if (currentRequestId !== requestCounter) return;
+
+                if (divSuggestionC.children.length > 0) {
+                    divSuggestionC.style.display = 'block';
+                } else {
+                    divSuggestionC.style.display = 'none';
+                }
+
+            }, CONFIG.debounceTime));
+        },
+        pic_preview: function pic_preview_listener(pic, id, idsObj) {
+            async function updateDisplay(index, pic, files) {
+                function prefetchImage(url) {
+                    if (!url) return;
+                    const img = new Image();
+                    img.decoding = "async";
+                    img.loading = "eager";
+                    img.src = url;
+                }
+
+                if (index < 0 || index >= files.length) return;
+
+                const file = files[index];
+                const picture = pic.querySelector("picture")
+                const img = document.createElement("img")
+
+                picture.innerHTML = ""
+                picture.appendChild(img)
+
+                const url = get_preview_image(file);
+                if (url) img.src = url;
+
+                [1, -1].forEach(offset => {
+                    const nextIdx = (index + offset + files.length) % files.length;
+                    const nextFile = files[nextIdx];
+                    const nextUrl = get_preview_image(nextFile);
+                    prefetchImage(nextUrl);
+                });
             }
 
-            if (!files.length) return;
+            let currentIndex = 0;
+            pic.addEventListener('click', async (e) => {
+                e.preventDefault();
 
-            const rect = pic.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            
-            if (x < rect.width / 2) {
-                currentIndex = (currentIndex - 1 + files.length) % files.length;
-            } else {
-                currentIndex = (currentIndex + 1) % files.length;
+                const files = idsObj[id].previewFiles;
+                const info = await fetch_id_js(id)
+                const step = Math.round(info.files.length / CONFIG.picPreviewPerPage)
+                for (let i = 0; i < info.files.length; i += step) {
+                    files.push(info.files[i])
+                }
+
+                if (!files.length) return;
+
+                const rect = pic.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                
+                if (x < rect.width / 2) {
+                    currentIndex = (currentIndex - 1 + files.length) % files.length;
+                } else {
+                    currentIndex = (currentIndex + 1) % files.length;
+                }
+                
+                updateDisplay(currentIndex, pic, files);
+            });
+        },
+        menu_and_search: function menu_and_search_listener(menuBtnOpen, sidebar, overlay, menuBtnClose, svgSearch, searchWindow) {
+            menuBtnOpen.addEventListener('click', () => {
+                sidebar.classList.add('active');
+                overlay.classList.add('active');
+            });
+
+            menuBtnClose.addEventListener('click', () => {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+            });
+
+            overlay.addEventListener('click', () => {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+            });
+
+            svgSearch.onclick = (e) => {
+                e.stopPropagation();
+                searchWindow.classList.toggle('active');
+            };
+
+            searchWindow.onclick = (e) => {
+                e.stopPropagation();
+            };
+
+
+            window.onclick = (e) => {
+                if (!searchWindow.contains(e.target) && !svgSearch.contains(e.target) && !STATE.isPickerActive) {
+                    searchWindow.classList.remove('active');
+                }
+            };
+        },
+        setting_listener: function setting_listener() {
+            function update_card_style() {
+                document.documentElement.style.setProperty('--cardWidth', `${CONFIG.cardWidth}px`);
+                document.documentElement.style.setProperty('--cardWrapWidth', `${CONFIG.cardWrapWidth}px`);
+            };
+
+            const default_config = {...CONFIG};
+            divSetting.querySelectorAll('input').forEach(input => {
+                const strValue = localStorage.getItem(input.id);
+                if (strValue) {
+                    const value = JSON.parse(strValue);
+                    if (typeof value === 'boolean') {
+                        input.checked = value;
+                    } else {
+                        input.value = value;
+                    }
+                    CONFIG[input.id] = value;
+                }
+            });
+
+            update_card_style();
+            load_default_query();
+
+            [STORAGE.cardWidthKey, STORAGE.cardWrapWidthKey].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', (e) => {
+                        CONFIG[id] = e.target.value;
+                        update_card_style();
+                    });
+                }
+            });
+
+            saveSettingButton.addEventListener('click', () => {
+                divDefaultInput.querySelectorAll('.TagContainer').forEach(el => el.remove());
+                divSetting.querySelectorAll('input').forEach(input => {
+                    let value;
+                    if (input.type === "checkbox") {
+                        value = input.checked;
+                    } else if (input.type === "range" || input.classList.contains('numeric')) {
+                        value = input.value.length ? Number(input.value) : default_config[input.id];
+                    } else {
+                        value = input.value.length ? input.value : default_config[input.id];
+                    }
+                    
+                    save_to_localstorage(saveSettingButton, input.id, value);
+                    CONFIG[input.id] = value;
+                });
+                update_card_style();
+                load_default_query();
+            });
+
+            exportSettingButton.addEventListener('click', export_setting);
+            importSettingButton.addEventListener('click', import_setting);
+        },
+    }
+
+    const CREATE = {
+        badge: function badge(query, divContainer, actualInput, isOr = false) {
+            if (!query.length) return
+
+            let existingInput = actualInput.value.split(/\s+/)
+            if (!isOr && existingInput.includes(query)) return
+
+            const spanExists = [...divContainer.querySelectorAll("span")]
+                .some(span => span.textContent.trim() === query)
+
+            if (spanExists) return
+
+            if (query.includes(':')) {
+                const queryList = query.split(/:/)
+                let field = queryList[0], term = queryList[1], isNegative = query.startsWith('-')
+
+                const input = `<input class="BetweenInput" type="text" maxlength="0">`
+                const svg = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle-fill" viewBox="0 0 16 16">
+                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z"/>
+                    </svg>
+                `;
+
+                const divTagC = document.createElement("div")
+                divTagC.className = "TagContainer"
+                divTagC.innerHTML = input
+
+                const span = document.createElement("span");
+                span.className = "BadgeGreen";
+                if (isNegative) span.className = "BadgeRed";
+                span.innerHTML = `${svg} ${field}:${space2ubar(term)}`;
+
+                divTagC.appendChild(span)
+
+                divContainer.insertBefore(divTagC, actualInput);
+            } else if (isOr) {
+                const input = `<input class="BetweenInput" type="text" maxlength="0">`
+
+                const divTagC = document.createElement("div")
+                divTagC.className = "TagContainer"
+                divTagC.innerHTML = input
+
+                const span = document.createElement("span");
+                span.textContent = "|"
+                span.style.color = "cyan"
+
+                divTagC.appendChild(span)
+
+                divContainer.insertBefore(divTagC, actualInput);
             }
-            
-            updateDisplay(currentIndex, pic, files);
-        });
-    }
-
-    function createLinksHtml(dict, options = {}) {
-        const { 
-            className = '', 
-        } = options;
-
-        if (!dict || dict.length === 0) {
-            return '<a>N/A</a>';
-        }
-
-        return dict.map(item => {
-            const text = item.text
-            const href = item.url
-            const classAttr = className ? ` class="${className}"` : '';
-            return `<a${classAttr} href="${href}">${text}</a>`;
-        }).join(', ');
-    }
-
-    function appendTableRow(table, label, contentHtml, containerClass = '') {
-        const finalContent = containerClass 
-            ? `<div class="${containerClass}">${contentHtml}</div>` 
-            : contentHtml;
-
-        table.insertAdjacentHTML(
-            'beforeend',
-            `<tr><td class="Label">${label}:</td><td>${finalContent}</td></tr>`
-        );
-    }
-
-    function generate_tags(tags, container) {
-        if (tags.length === 0) {
-            const aTag = document.createElement('a');
-            aTag.className = 'BadgeBlue';
-            aTag.textContent = 'N/A';
-            container.appendChild(aTag);
-        } else {
-            tags.forEach(tag => {
-                if (tag.textContent === '...') return;
-
+            else {
+                actualInput.value += (actualInput.value ? " " : "") + query
+            }
+        },
+        tags: function tags(tags, container) {
+            if (tags.length === 0) {
                 const aTag = document.createElement('a');
                 aTag.className = 'BadgeBlue';
-                aTag.textContent = tag.text
-
+                aTag.textContent = 'N/A';
                 container.appendChild(aTag);
-            });
-        };
-    };
+            } else {
+                tags.forEach(tag => {
+                    if (tag.textContent === '...') return;
 
-    function custom_viewer_listener(aTitle, picture, tableDict, id) {
-        async function setupViewer(info) {
-            document.documentElement.innerHTML = html.viewer;
+                    const aTag = document.createElement('a');
+                    aTag.className = 'BadgeBlue';
+                    aTag.textContent = tag.text
 
-            const divImageContainer = document.querySelector("div.ImageContainer");
-            const divHeaderInfoContainer = document.querySelector("div.HeaderInfoContainer");
-            const divInfo = document.querySelector("div.Info");
-            const aArtist = document.querySelector("a.Artist");
-            const _aTitle = document.querySelector("a.Title");
-            const divHeaderContainer = document.querySelector("div.HeaderContainer");
-            const divRelatedContainer = document.querySelector("div.RelatedContainer");
-            const divPages = document.querySelectorAll("div.Page");
+                    container.appendChild(aTag);
+                });
+            };
+        },
+        atag_for_table: function atag_for_table(dict, options = {}) {
+            const { 
+                className = '', 
+            } = options;
 
-            picture.className = "Thumbnail"
-            divHeaderContainer.insertBefore(picture, divHeaderInfoContainer)
-
-            _aTitle.textContent = aTitle.textContent
-
-            const artistLinks = tableDict.artist.map(a => `<a href="${a.href}">${a.textContent}</a>`);
-            if (!artistLinks.length) artistLinks.push("<a>N/A</a>")
-            aArtist.insertAdjacentHTML(
-                'beforeend',
-                artistLinks.join(', ')
-            );
-
-            const table = document.createElement("table")
-
-            const langLinks = tableDict.language.map(a => `<a href="${a.href}">${a.textContent}</a>`);
-            if (!langLinks.length) langLinks.push("<a>N/A</a>")
-            table.insertAdjacentHTML(
-                'beforeend',
-                `<tr><td class="Label">language:</td><td>${langLinks.join(', ')}</td></tr>`
-            );
-            const typeLinks = tableDict.type.map(a => `<a href="${a.href}">${a.textContent}</a>`);
-            if (!typeLinks.length) typeLinks.push("<a>N/A</a>")
-            table.insertAdjacentHTML(
-                'beforeend',
-                `<tr><td class="Label">type:</td><td>${typeLinks.join(', ')}</td></tr>`
-            );
-            const seriesList = tableDict.series.map(a => `<a href="${a.href}">${a.textContent}</a>`);
-            if (!seriesList.length) seriesList.push("<a>N/A</a>")
-            table.insertAdjacentHTML(
-                'beforeend',
-                `<tr><td class="Label">series:</td><td>${seriesList.join(', ')}</td></tr>`
-            );
-
-            if (info.tags) {
-                const tagList = info.tags.map(tagDict => 
-                    `<a class="BadgeBlue" href="${tagDict.url}">${tagDict.tag}</a>`);
-                if (!tagList.length) tagList.push("<a>N/A</a>")
-                table.insertAdjacentHTML(
-                    'beforeend',
-                    `<tr><td class="Label">tags:</td><td>
-                        <div class="CardTagsContainer">
-                            ${tagList.join(', ')}
-                        </div>
-                    </td></tr>`
-                );
+            if (!dict || dict.length === 0) {
+                return '<a>N/A</a>';
             }
 
-            if (info.characters) {
-                const charList = info.characters.map(charDict => 
-                    `<a class="Badgegrey" href="${charDict.url}">${charDict.character}</a>`);
-                if (!charList.length) charList.push("<a>N/A</a>")
-                table.insertAdjacentHTML(
-                    'beforeend',
-                    `<tr><td class="Label">characters:</td><td>
-                        <div class="CardTagsContainer">
-                            ${charList.join(', ')}
-                        </div>
-                    </td></tr>`
-                );
-            }
+            return dict.map(item => {
+                const text = item.text
+                const href = item.url
+                const classAttr = className ? ` class="${className}"` : '';
+                return `<a${classAttr} href="${href}">${text}, </a>`;
+            }).join('');
+        },
+        table_row: function table_row(table, label, contentHtml, containerClass = '') {
+            const finalContent = containerClass 
+                ? `<div class="${containerClass}">${contentHtml}<div style="width:100px></div></div>` 
+                : contentHtml;
 
-            divInfo.appendChild(table)
-
-            for (const x of info.related) {
-                const rInfo = await fetch_id_js(x)
-                const parsedInfo = await parse_id_js(parseInt(rInfo.id))
-
+            table.insertAdjacentHTML(
+                'beforeend',
+                `<tr><td class="Label">${label}:</td><td>${finalContent}</td></tr>`
+            );
+        },
+        card: function card(idJsList, divCardC) {
+            idJsList.forEach(idJs => {
                 const divCard = document.createElement("div")
                 divCard.className = "Card"
 
-                const imgCardImage = document.createElement("img") 
-                imgCardImage.className = "CardImage"
-                imgCardImage.dataset.src = get_preview_image(rInfo.files[0])
-                imgCardImage.className = "CardImage lazyload"
-
-                const divCardContents = document.createElement("div")
-                divCardContents.className = "CardContents"
+                const divTableC = document.createElement("div")
+                divTableC.className = "CardTableContainer"
 
                 const aCardTitle = document.createElement("a")
                 aCardTitle.className = "CardTitle"
-                aCardTitle.href = rInfo.galleryurl
-                aCardTitle.textContent = parsedInfo.title[0].text
+                aCardTitle.textContent = idJs.title[0].text
 
-                const divCardTableContainer = document.createElement("div")
-                divCardContents.className = "CardTableContainer"
+                const table = document.createElement("table")
+                CREATE.table_row(table, "language", CREATE.atag_for_table(idJs.language));
+                CREATE.table_row(table, "type", CREATE.atag_for_table(idJs.type));
+                CREATE.table_row(table, "artists", CREATE.atag_for_table(idJs.artists), "CardTagsContainer");
+                CREATE.table_row(table, "series", CREATE.atag_for_table(idJs.parodys), "CardTagsContainer");
 
-                const rTable = document.createElement("table")
-                appendTableRow(rTable, "language", createLinksHtml(parsedInfo.language));
-                appendTableRow(rTable, "type", createLinksHtml(parsedInfo.type));
-                appendTableRow(rTable, "artists", createLinksHtml(parsedInfo.artists));
-                appendTableRow(rTable, "series", createLinksHtml(parsedInfo.parodys));
+                const aPage = document.createElement("a")
+                aPage.className = "page BadgeGrey"
+                aPage.textContent = `${idJs.pictures.length}p`
 
-                const aPageNum = document.createElement("a")
-                aPageNum.className = "page BadgeGrey"
-                aPageNum.textContent = `${rInfo.files.length}p`
+                const divTagC = document.createElement("div")
+                divTagC.className = "CardTagsContainer"
+                CREATE.tags(idJs.tags, divTagC)
 
-                const divCardTagsContainer = document.createElement("div")
-                divCardTagsContainer.className = "CardTagsContainer"
+                const divbottomC = document.createElement("div")
+                divbottomC.className = "BottomContainer"
 
-                generate_tags(parsedInfo.tags, divCardTagsContainer)
+                const pictureUrl = UTIL.decrypt_picture(idJs.pictures[0])
+                pictureUrl.replace("hitomi.la", STATE.domain)
+                const img = document.createElement("img")
+                img.src = pictureUrl
 
-                divRelatedContainer.appendChild(divCard)
+                const aPic = document.createElement("a")
+                aPic.href = idJs.title[0].url
+                aPic.target = "_blank"
 
-                divCard.appendChild(imgCardImage)
-                divCard.appendChild(divCardContents)
-
-                divCardContents.appendChild(aCardTitle)
-                divCardContents.appendChild(divCardTableContainer)
-                divCardContents.appendChild(aPageNum)
-                divCardContents.appendChild(divCardTagsContainer)
-
-                divCardTableContainer.appendChild(rTable)
-            }
-            
-            const { files } = info;
-            const step = CONFIG.viewerImagePerPage;
-
-            for (let i = 0; i < files.length; i += step) {
-                const pageNum = Math.floor(i / step) + 1;
-                const batch = files.slice(i, i + step);
-
-                divPages.forEach(divPage => {
-                    const btn = document.createElement("button");
-                    btn.textContent = pageNum;
-                    btn.type = "button";
-
-                    btn.addEventListener("click", () => {
-                        updateActiveButtonState(divPages, pageNum);
-                        renderImages(divImageContainer, batch);
-                    });
-
-                    divPage.appendChild(btn);
-                });
-            }
-
-            if (files.length > 0) {
-                divPages.forEach(dp => dp.querySelector("button")?.click());
-            }
+                aPic.appendChild(img)
+                divCard.appendChild(aPic)
+                divCardC.appendChild(divCard)
+                divCard.appendChild(aCardTitle)
+                divTableC.appendChild(table)
+                divCard.appendChild(divTableC)
+                divTableC.appendChild(table)
+                divbottomC.appendChild(aPage)
+                divbottomC.appendChild(divTagC)
+                divCard.appendChild(divbottomC)
+            })
         }
-
-        function renderImages(container, files) {
-            container.innerHTML = "";
-            
-            const fragment = document.createDocumentFragment();
-            files.forEach((fileDict, idx) => {
-                const a = document.createElement("a")
-                a.href = `reader/${id}.html#${idx + 1}`
-
-                const img = document.createElement("img");
-                img.className = "Image lazyload";
-                img.dataset.src = get_preview_image(fileDict);
-
-                a.appendChild(img)
-                fragment.appendChild(a);
-            });
-            container.appendChild(fragment);
-        }
-
-        function updateActiveButtonState(containers, activeText) {
-            containers.forEach(container => {
-                const buttons = container.querySelectorAll("button");
-                buttons.forEach(btn => {
-                    if (btn.textContent === String(activeText)) {
-                        btn.style.color = "var(--dimWhite)";
-                        btn.style.fontWeight = 'bold';
-                    } else {
-                        btn.style.color = "";
-                        btn.style.fontWeight = '';
-                    }
-                });
-            });
-        }
-
-        if (!CONFIG.useCustomViewer) return;
-
-        aTitle.addEventListener('click', async (e) => {
-            e.preventDefault();
-
-            const info = await fetch_id_js(id);
-            setupViewer(info);
-        });
     }
 
-    function menu_and_search_listener(menuBtnOpen, sidebar, overlay, menuBtnClose, svgSearch, searchWindow) {
-        menuBtnOpen.addEventListener('click', () => {
-            sidebar.classList.add('active');
-            overlay.classList.add('active');
-        });
+    class Gallery {
+        constructor() {
+            document.open();
+            document.write(HTML.gallery)
+            document.close();
 
-        menuBtnClose.addEventListener('click', () => {
-            sidebar.classList.remove('active');
-            overlay.classList.remove('active');
-        });
+            self.menuBtnOpen = document.querySelector('#bi-list-open');
+            self.menuBtnClose = document.querySelector('#bi-list-close');
+            self.sidebar = document.querySelector('.Sidebar');
+            self.overlay = document.querySelector('.SidebarOverlay');
+            self.svgSearch = document.querySelector('.search-icon')
+            self.searchWindow = document.querySelector(".SearchFloatingWindow")
+            self.divSearchInput = document.querySelector("div.SearchInput#Search");
+            self.divSetting= document.querySelector("div.Setting");
+            self.divDefaultInput = document.querySelector("div.SearchInput#Default");
+            self.actualInput = document.querySelector("input.ActualInput#Search")
+            self.defaultActualInput = document.querySelector("input.ActualInput#Default")
+            self.divInputC = document.querySelector("div.InputContainer#Search")
+            self.divDefaultInputC = document.querySelector("div.InputContainer#Default");
+            self.divSuggestionC = document.querySelector("div.SuggestionContainer#Search")
+            self.divDefaultSuggestionC = document.querySelector("div.SuggestionContainer#Default")
+            self.divCardC = document.querySelector("div.CardContainer")
+            self.searchButton = document.querySelector("#SearchButton")
+            self.defaultSaveButton = document.querySelector("#SaveDefQButton")
+            self.saveSettingButton = document.querySelector("#SaveSettingButton")
+            self.exportSettingButton = document.querySelector("#ExportSettingButton")
+            self.importSettingButton = document.querySelector("#ImportSettingButton")
+            self.aResCount = document.querySelector("a.ResultsCount")
+            self.eyeContainer = document.querySelector("div.EyeContainer")
+            self.svgEye = document.querySelector("div.EyeContainer .eye")
+            self.eyeText = document.querySelector("div.EyeContainer a")
+            self.buttonAdd = document.querySelector("button.BtnAdd")
+            self.buttonEx = document.querySelector("button.BtnExclude")
+            self.optionOrderByDropdown = document.querySelectorAll("#orderbydropdown option")
+            self.pageContainers = document.querySelectorAll('.PageContainer');
+        }
 
-        overlay.addEventListener('click', () => {
-            sidebar.classList.remove('active');
-            overlay.classList.remove('active');
-        });
+        async load() {
+            let idsList = []
+            idsList = await FETCH.nozomi({ fetchAll: false, getRange: true });
+            const idJs = await Promise.all(idsList.map(id => FETCH.parsed_id_js(id)));
+            if (!idJs.length) return
 
-        svgSearch.onclick = (e) => {
-            e.stopPropagation();
-            searchWindow.classList.toggle('active');
-        };
-
-        searchWindow.onclick = (e) => {
-            e.stopPropagation();
-        };
-
-
-        window.onclick = (e) => {
-            if (!searchWindow.contains(e.target) && !svgSearch.contains(e.target) && !STATE.isPickerActive) {
-                searchWindow.classList.remove('active');
-            }
-        };
+            const filteredIdJs = UTIL.filter_contents(idJs)
+            CREATE.card(filteredIdJs, self.divCardC);
+        }
     }
 
-    function setting_listener() {
-        function update_card_style() {
-            document.documentElement.style.setProperty('--cardWidth', `${CONFIG.cardWidth}px`);
-            document.documentElement.style.setProperty('--cardWrapWidth', `${CONFIG.cardWrapWidth}px`);
-        };
+    async function main() {
+        await UTIL.check_avif_support()
+        await FETCH.gg()
 
-        const default_config = {...CONFIG};
-        divSetting.querySelectorAll('input').forEach(input => {
-            const strValue = localStorage.getItem(input.id);
-            if (strValue) {
-                const value = JSON.parse(strValue);
-                if (typeof value === 'boolean') {
-                    input.checked = value;
-                } else {
-                    input.value = value;
-                }
-                CONFIG[input.id] = value;
-            }
-        });
+        const hash = window.location.hash
 
-        update_card_style();
-        load_default_query();
-
-        [STORAGE.cardWidthKey, STORAGE.cardWrapWidthKey].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.addEventListener('input', (e) => {
-                    CONFIG[id] = e.target.value;
-                    update_card_style();
-                });
-            }
-        });
-
-        saveSettingButton.addEventListener('click', () => {
-            divDefaultInput.querySelectorAll('.TagContainer').forEach(el => el.remove());
-            divSetting.querySelectorAll('input').forEach(input => {
-                let value;
-                if (input.type === "checkbox") {
-                    value = input.checked;
-                } else if (input.type === "range" || input.classList.contains('numeric')) {
-                    value = input.value.length ? Number(input.value) : default_config[input.id];
-                } else {
-                    value = input.value.length ? input.value : default_config[input.id];
-                }
-                
-                save_to_localstorage(saveSettingButton, input.id, value);
-                CONFIG[input.id] = value;
-            });
-            update_card_style();
-            load_default_query();
-        });
-
-        exportSettingButton.addEventListener('click', export_setting);
-        importSettingButton.addEventListener('click', import_setting);
-    }
-
-
-    async function nozomi_load(options = {}) {
-        const {
-            url = `//ltn.${STATE.domain}/index-all.nozomi`,
-            step = CONFIG.galleriesPerPage * 4,
-            fetchAll = true,
-            getRange = false,
-        } = options;
-
-        if (STATE.indexObj[url] && fetchAll) {
-            return STATE.indexObj[url]
+        if (hash.includes("#/viewer")) {
+            document.open();
+            document.write(HTML.viewer)
+            document.close();
         } else {
-            const bytesArray = await xhr_get(url, { step: step, fetchAll: fetchAll, getRange: getRange });
-            const view = new DataView(bytesArray);
-            const totalBytes = view.byteLength;
-            STATE.indexObj[url] = get_ids(totalBytes, view)
-            return STATE.indexObj[url]
+            const gallery = new Gallery();
+            gallery.load();
         }
-    }
-
-    async function fetch_gg() {
-        const url = 'https://ltn.gold-usergeneratedcontent.net/gg.js';
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Network response was not ok');
-        
-        const rawText = await response.text();
-
-        const scriptBody = `
-            let gg; 
-            ${rawText.replace("'use strict';", "")} 
-            return gg;
-        `;
-
-        const extractGG = new Function(scriptBody);
-        STATE.gg = extractGG();
-    }
-
-    function load_default_query() {
-        CONFIG.defaultQuery.split(/\s+/).forEach(query => {
-            tag_to_badge(query, divDefaultInput, defaultActualInput)
-        })
-    }
-
-    async function check_avif_support() {
-        try {
-            const img = new Image();
-            img.src = "data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADrbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAAAAAAAOcGl0bQAAAAAAAQAAAB5pbG9jAAAAAEQAAAEAAQAAAAEAAAETAAAAFwAAAChpaW5mAAAAAAABAAAAGmluZmUCAAAAAAEAAGF2MDFDb2xvcgAAAABqaXBycAAAAEtpcGNvAAAAFGlzcGUAAAAAAAAAAQAAAAEAAAAQcGl4aQAAAAADCAgIAAAADGF2MUOBAAwAAAAAE2NvbHJuY2x4AAEADQAGgAAAABdpcG1hAAAAAAAAAAEAAQQBAoMEAAAAH21kYXQSAAoFGAAGBCAyDBQAAwwwxAAAeUut9g==";
-            await img.decode();
-            STATE.avif = true;
-        } catch {
-            STATE.avif = false;
-        }
-    }
-
-    function export_setting() {
-        const data = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (!Object.values(STORAGE).includes(key)) continue
-
-            const value = localStorage.getItem(key);
-            data[key] = JSON.parse(value);
-        }
-        const json = JSON.stringify(data, null, 2);
-        const blob = new Blob([json], { type: "application/json" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "setting.json";
-        a.click();
-
-        URL.revokeObjectURL(a.href);
-    }
-
-    async function import_setting() {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = ".json";
-       
-        input.onchange = async () => {
-            const file = input.files[0];
-            const data = JSON.parse(await file.text());
-         
-            for (const key in data) {
-                localStorage.setItem(key, JSON.stringify(data[key]));
-            }
-         
-            location.reload()
-        };
-       
-        input.click();
     }
 
     const STORAGE = {
         defaultQueryKey: "defaultQuery",
         infScrollKey: "infScroll",
         incrementTagKey: "incrementTag",
-        fetchPageNumKey: "fetchPageNum",
         minPageKey: "minPage",
         maxPageKey: "maxPage",
         trialLimitKey: "trialLimit",
@@ -1889,7 +912,6 @@
     const CONFIG = {
         infScroll: true,
         incrementTag: false,
-        fetchPageNum: false,
         useCustomViewer: true,
         minPage: 0,
         maxPage: 0,
@@ -1900,8 +922,12 @@
         picPreviewPerPage: 5,
         cardWidth: 220,
         cardWrapWidth: 190,
-        defaultQuery: ""
-    };
+        defaultQuery: "",
+        filterNA: {
+            artist: true,
+            tag: true,
+        }
+    }
 
     const STATE = {
         fetching: false,
@@ -1917,9 +943,9 @@
         indexObj: {},
         randomUsed: new Set(),
         gg: new Function()
-    };
+    }
 
-    const html = {
+    const HTML = {
         gallery: `
         <!DOCTYPE html>
         <html>
@@ -1932,7 +958,13 @@
                 :root {--radius: 0.375rem; --white: rgb(211, 211, 211); --dimWhite: rgb(140, 140, 140); --grey: #6c757d; --blue: #0d6efd; --green: #28a745; --red: #dc3545; --btnGreen: #198754; --btnRed: #a13643; --cardWidth: 220px; --cardWrapWidth: 190px;}
 
                 body {margin: 0; background-color: hsl(0, 0%, 16%);}
-                table tr td a {display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all; color: var(--dimWhite); text-decoration: none;}
+                table tr td a {
+                    display: -webkit-box;
+                    -webkit-box-orient: vertical;
+                    -webkit-line-clamp: 1;
+                    word-break: break-all;
+                    text-decoration: none;
+                }
                 strong {color: cyan;}
                 span svg {color: var(--white); margin-right: 8px; cursor: pointer;}
 
@@ -1955,8 +987,9 @@
                     scrollbar-width: thin;
                 }
 
-                .CardTableContainer table {color: var(--dimWhite);}
-                .CardTagsContainer a {margin-right: 5%; text-decoration: none; color: var(--white);}
+                .CardTableContainer table a {color: var(--dimWhite); scrollbar-width: thin;}
+                .CardTableContainer table td {color: var(--dimWhite)}
+                .CardTagsContainer a {margin-right: 5%; text-decoration: none;}
                 .Card img {width: 100%; height: 220px; object-fit: cover; border-radius: var(--radius);}
                 .EyeContainer a {white-space: nowrap; display: none;}
                 .NavbarContainer a img {width: 80%;}
@@ -1999,7 +1032,19 @@
                 .BtnContainer button{width: 40px;}
                 .CardContainer {display: flex; flex-wrap: wrap; justify-content: space-around; color: var(--white); background-color: hsl(0, 0%, 10%); border-radius: var(--radius); gap: 20px; margin: 10px;}
                 .CardTableContainer {display: flex; flex-direction: column; align-items: center; overflow-x: auto; align-self: start;}
-                .CardTagsContainer {scrollbar-width: thin; display: flex; overflow-x: auto; white-space: nowrap; background-color: hsl(0, 0%, 10%); width: 100%; scrollbar-color: darkgray transparent; margin-left: 10px; padding-right: 40px; box-sizing: border-box;}
+                .CardTagsContainer {
+                    scrollbar-width: thin;
+                    display: flex;
+                    overflow-x: auto;
+                    white-space: nowrap;
+                    background-color: hsl(0, 0%, 16%);
+                    width: 100%;
+                    scrollbar-color: darkgray transparent;
+                    padding-right: 40px;
+                    box-sizing: border-box;
+                    border-radius: var(--radius);
+                }
+
                 .PageContainer {display: flex; justify-content: center; color: var(--white); margin: 10px;}
                 .SuggestionContainer {display: none; margin: 0; position: absolute; z-index: 1; background-color: hsl(0, 0%, 13%); color: var(--white); border: 1px solid hsl(0, 0%, 18%); border-radius: var(--radius);}
                 .EyeContainer {display: flex; background-color: transparent; border-radius: var(--radius); padding: 5px; gap: 5px;}
@@ -2042,7 +1087,7 @@
 
                 .eye {margin-left: 1%;}
                 .CardTitle {font-weight: bold; text-decoration: none; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; word-break: break-all; color: var(--white);}
-                .page {width: fit-content;}
+                .page {width: fit-content; margin-right: 3px;}
                 .Card {display: flex; flex-direction: column; flex: 1 1 var(--cardWrapWidth); max-width: var(--cardWidth); background-color: hsl(0, 0%, 14%); overflow: hidden; justify-content: space-between; border-radius: var(--radius); border:1px solid hsl(0, 0%, 19%); padding: 5px; gap: 10px;}
                 .Suggestion {display: flex; white-space: nowrap; padding: 3%; border-bottom: 1px solid hsl(0, 0%, 18%);}
                 .bi-list {color: var(--dimWhite); width: 32px; height: 32px; cursor: pointer;}
@@ -2079,7 +1124,6 @@
                 <div class="Setting">
                     <label><input type="checkbox" id="${STORAGE.infScrollKey}"> infScroll</label>
                     <label><input type="checkbox" id="${STORAGE.incrementTagKey}"> incrementTag</label>
-                    <label><input type="checkbox" id="${STORAGE.fetchPageNumKey}"> fetchPageNum</label>
 
                     <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.cardWidthKey}" placeholder="cardWidth: ${CONFIG.cardWidth}">
                     <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.cardWrapWidthKey}" placeholder="cardWrapWidth: ${CONFIG.cardWrapWidth}">
@@ -2345,77 +1389,5 @@
         `,
     }
 
-    document.documentElement.innerHTML = html.gallery;
-
-    const menuBtnOpen = document.querySelector('#bi-list-open');
-    const menuBtnClose = document.querySelector('#bi-list-close');
-    const sidebar = document.querySelector('.Sidebar');
-    const overlay = document.querySelector('.SidebarOverlay');
-    const svgSearch = document.querySelector('.search-icon')
-    const searchWindow = document.querySelector(".SearchFloatingWindow")
-    const divSearchInput = document.querySelector("div.SearchInput#Search");
-    const divSetting= document.querySelector("div.Setting");
-    const divDefaultInput = document.querySelector("div.SearchInput#Default");
-    const actualInput = document.querySelector("input.ActualInput#Search")
-    const defaultActualInput = document.querySelector("input.ActualInput#Default")
-    const divInputC = document.querySelector("div.InputContainer#Search")
-    const divDefaultInputC = document.querySelector("div.InputContainer#Default");
-    const divSuggestionC = document.querySelector("div.SuggestionContainer#Search")
-    const divDefaultSuggestionC = document.querySelector("div.SuggestionContainer#Default")
-    const divCardC = document.querySelector("div.CardContainer")
-    const searchButton = document.querySelector("#SearchButton")
-    const defaultSaveButton = document.querySelector("#SaveDefQButton")
-    const saveSettingButton = document.querySelector("#SaveSettingButton")
-    const exportSettingButton = document.querySelector("#ExportSettingButton")
-    const importSettingButton = document.querySelector("#ImportSettingButton")
-    const aResCount = document.querySelector("a.ResultsCount")
-    const eyeContainer = document.querySelector("div.EyeContainer")
-    const svgEye = document.querySelector("div.EyeContainer .eye")
-    const eyeText = document.querySelector("div.EyeContainer a")
-    const buttonAdd = document.querySelector("button.BtnAdd")
-    const buttonEx = document.querySelector("button.BtnExclude")
-    const optionOrderByDropdown = document.querySelectorAll("#orderbydropdown option")
-    const pageContainers = document.querySelectorAll('.PageContainer');
-
-    if (CONFIG.picPreviewPerPage >= 1) await fetch_gg()
-
-    await check_avif_support()
-    setting_listener()
-    search_post_process(divSearchInput, actualInput)
-    await load(aResCount, divCardC) // STATE.fetching, STATE.resultsCount
-
-    menu_and_search_listener(menuBtnOpen, sidebar, overlay, menuBtnClose, svgSearch, searchWindow)
-    search_tag_listener(divSearchInput, actualInput, divInputC, divSuggestionC, defaultSaveButton)
-    search_tag_listener(divDefaultInput, defaultActualInput, divDefaultInputC, divDefaultSuggestionC, defaultSaveButton, true)
-    suggestion_listener(actualInput, divSuggestionC, divSearchInput)
-    suggestion_listener(defaultActualInput, divDefaultSuggestionC, divDefaultInput)
-    order_listener(optionOrderByDropdown) // STATE.orderBy
-    search_listener(searchButton, divSearchInput, divSuggestionC, actualInput, aResCount, divCardC)
-    picker_listener(svgEye, buttonAdd, buttonEx, divDefaultInput, defaultActualInput, eyeText, eyeContainer, defaultSaveButton)
-
-    if (CONFIG.infScroll) {
-        const observer = new IntersectionObserver(async (entries) => {
-            const entry = entries[0];
-
-            if (entry.isIntersecting && !STATE.fetching) {
-                observer.unobserve(entry.target);
-
-                await load(aResCount, divCardC);
-
-                observer.observe(entry.target);
-            }
-
-        }, {
-            root: null,
-            rootMargin: "0px 0px 300px 0px",
-            threshold: 0
-        });
-
-        observer.observe(document.querySelector("#scrollSentinel"));
-    }
-    document.querySelectorAll(".numeric").forEach(input => {
-        input.addEventListener("input", () => {
-            input.value = input.value.replace(/\D/g, "");
-        });
-    });
-})();
+    await main()
+})()
