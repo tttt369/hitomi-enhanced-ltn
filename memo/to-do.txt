@@ -1,10 +1,6 @@
-タグがN/Aの場合のフィルター
 カスタムviewer
-
 イベントリスナーを減らす
 引数を減らす
-idjsのみからパース
 sha256, lazysizes, fontなどのインポートを減らす
 ｂ木の効率化
-関数を処理される順に
 デフォルトクエリのハンドリングを強化eg, -western imageになる場合をtag:western imageにただしく

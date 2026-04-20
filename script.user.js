@@ -133,25 +133,6 @@
                 return data;
             }
         },
-        gallery: async function gallery(idsList) {
-            const galleriesList = [];
-            const count = Math.min(idsList.length, CONFIG.galleriesPerPage);
-
-            const promises = [];
-            for (let i = 0; i < count; ++i) {
-                const galleryId = idsList[i];
-                const url = `//ltn.${STATE.domain}/galleryblock/${galleryId}.html`;
-                promises.push(FETCH.get(url, { responseType: "text" }));
-            }
-
-            const results = await Promise.all(promises);
-            for (const r of results) {
-                galleriesList.push(r);
-            }
-
-            ++STATE.fetchCount;
-            return galleriesList;
-        },
         nozomi: async function nozomi(options = {}) {
             const {
                 url = `//ltn.${STATE.domain}/index-all.nozomi`,
@@ -282,6 +263,7 @@
                 const id = view.getUint32(i, false);
                 idsList.push(id)
             };
+
             return idsList
         },
         filter_contents: function filter_contents(idJsList) {
@@ -346,6 +328,26 @@
             }
 
             return url.replace(/\/\/..?\.(?:gold-usergeneratedcontent\.net|hitomi\.la)\//, '//' + subdomain + '.' + STATE.domain + '/');
+        },
+        observer: function observer(xclass) {
+            const observer = new IntersectionObserver(async (entries) => {
+                const entry = entries[0];
+
+                if (entry.isIntersecting && !STATE.fetching) {
+                    observer.unobserve(entry.target);
+
+                    xclass.load();
+
+                    observer.observe(entry.target);
+                }
+
+            }, {
+                root: null,
+                rootMargin: "0px 0px 300px 0px",
+                threshold: 0
+            });
+
+            observer.observe(document.querySelector("#scrollSentinel"));
         }
     }
 
@@ -755,19 +757,25 @@
         },
         atag_for_table: function atag_for_table(dict, options = {}) {
             const { 
-                className = '', 
+                onlyOne = false,
+                className = '',
             } = options;
+
+            let res = ""
 
             if (!dict || dict.length === 0) {
                 return '<a>N/A</a>';
             }
 
-            return dict.map(item => {
-                const text = item.text
+            for (const item of dict) {
+                const text = onlyOne ? item.text : `${item.text}, `
                 const href = item.url
                 const classAttr = className ? ` class="${className}"` : '';
-                return `<a${classAttr} href="${href}">${text}, </a>`;
-            }).join('');
+                res += `<a${classAttr} href="${href}">${text}</a>`;
+                if (onlyOne) break 
+            }
+
+            return res
         },
         table_row: function table_row(table, label, contentHtml, containerClass = '') {
             const finalContent = containerClass 
@@ -790,12 +798,13 @@
                 const aCardTitle = document.createElement("a")
                 aCardTitle.className = "CardTitle"
                 aCardTitle.textContent = idJs.title[0].text
+                aCardTitle.href = idJs.title[0].url
 
                 const table = document.createElement("table")
-                CREATE.table_row(table, "language", CREATE.atag_for_table(idJs.language));
-                CREATE.table_row(table, "type", CREATE.atag_for_table(idJs.type));
-                CREATE.table_row(table, "artists", CREATE.atag_for_table(idJs.artists), "CardTagsContainer");
-                CREATE.table_row(table, "series", CREATE.atag_for_table(idJs.parodys), "CardTagsContainer");
+                CREATE.table_row(table, "language", CREATE.atag_for_table(idJs.language, {onlyOne: true}));
+                CREATE.table_row(table, "type", CREATE.atag_for_table(idJs.type, {onlyOne: true}));
+                CREATE.table_row(table, "artists", CREATE.atag_for_table(idJs.artists, {onlyOne: true}));
+                CREATE.table_row(table, "series", CREATE.atag_for_table(idJs.parodys, {onlyOne: true}));
 
                 const aPage = document.createElement("a")
                 aPage.className = "page BadgeGrey"
@@ -828,61 +837,139 @@
                 divbottomC.appendChild(divTagC)
                 divCard.appendChild(divbottomC)
             })
-        }
+        },
     }
 
     class Gallery {
         constructor() {
-            document.open();
-            document.write(HTML.gallery)
-            document.close();
+            this.menuBtnOpen = document.querySelector('#bi-list-open');
+            this.menuBtnClose = document.querySelector('#bi-list-close');
+            this.sidebar = document.querySelector('.Sidebar');
+            this.overlay = document.querySelector('.SidebarOverlay');
+            this.svgSearch = document.querySelector('.search-icon')
+            this.searchWindow = document.querySelector(".SearchFloatingWindow")
+            this.divSearchInput = document.querySelector("div.SearchInput#Search");
+            this.divSetting= document.querySelector("div.Setting");
+            this.divDefaultInput = document.querySelector("div.SearchInput#Default");
+            this.actualInput = document.querySelector("input.ActualInput#Search")
+            this.defaultActualInput = document.querySelector("input.ActualInput#Default")
+            this.divInputC = document.querySelector("div.InputContainer#Search")
+            this.divDefaultInputC = document.querySelector("div.InputContainer#Default");
+            this.divSuggestionC = document.querySelector("div.SuggestionContainer#Search")
+            this.divDefaultSuggestionC = document.querySelector("div.SuggestionContainer#Default")
+            this.divCardC = document.querySelector("div.CardContainer")
+            this.searchButton = document.querySelector("#SearchButton")
+            this.defaultSaveButton = document.querySelector("#SaveDefQButton")
+            this.saveSettingButton = document.querySelector("#SaveSettingButton")
+            this.exportSettingButton = document.querySelector("#ExportSettingButton")
+            this.importSettingButton = document.querySelector("#ImportSettingButton")
+            this.aResCount = document.querySelector("a.ResultsCount")
+            this.eyeContainer = document.querySelector("div.EyeContainer")
+            this.svgEye = document.querySelector("div.EyeContainer .eye")
+            this.eyeText = document.querySelector("div.EyeContainer a")
+            this.buttonAdd = document.querySelector("button.BtnAdd")
+            this.buttonEx = document.querySelector("button.BtnExclude")
+            this.optionOrderByDropdown = document.querySelectorAll("#orderbydropdown option")
+            this.pageContainers = document.querySelectorAll('.PageContainer');
+        }
 
-            self.menuBtnOpen = document.querySelector('#bi-list-open');
-            self.menuBtnClose = document.querySelector('#bi-list-close');
-            self.sidebar = document.querySelector('.Sidebar');
-            self.overlay = document.querySelector('.SidebarOverlay');
-            self.svgSearch = document.querySelector('.search-icon')
-            self.searchWindow = document.querySelector(".SearchFloatingWindow")
-            self.divSearchInput = document.querySelector("div.SearchInput#Search");
-            self.divSetting= document.querySelector("div.Setting");
-            self.divDefaultInput = document.querySelector("div.SearchInput#Default");
-            self.actualInput = document.querySelector("input.ActualInput#Search")
-            self.defaultActualInput = document.querySelector("input.ActualInput#Default")
-            self.divInputC = document.querySelector("div.InputContainer#Search")
-            self.divDefaultInputC = document.querySelector("div.InputContainer#Default");
-            self.divSuggestionC = document.querySelector("div.SuggestionContainer#Search")
-            self.divDefaultSuggestionC = document.querySelector("div.SuggestionContainer#Default")
-            self.divCardC = document.querySelector("div.CardContainer")
-            self.searchButton = document.querySelector("#SearchButton")
-            self.defaultSaveButton = document.querySelector("#SaveDefQButton")
-            self.saveSettingButton = document.querySelector("#SaveSettingButton")
-            self.exportSettingButton = document.querySelector("#ExportSettingButton")
-            self.importSettingButton = document.querySelector("#ImportSettingButton")
-            self.aResCount = document.querySelector("a.ResultsCount")
-            self.eyeContainer = document.querySelector("div.EyeContainer")
-            self.svgEye = document.querySelector("div.EyeContainer .eye")
-            self.eyeText = document.querySelector("div.EyeContainer a")
-            self.buttonAdd = document.querySelector("button.BtnAdd")
-            self.buttonEx = document.querySelector("button.BtnExclude")
-            self.optionOrderByDropdown = document.querySelectorAll("#orderbydropdown option")
-            self.pageContainers = document.querySelectorAll('.PageContainer');
+        listener() {
+            const page_listener = async (e) => {
+                const anchor = e.target.closest('a');
+                if (!anchor) return 
+
+                e.preventDefault();
+                const p = Number(anchor.textContent.trim());
+                if (p === STATE.fetchCount || STATE.fetching) return;
+
+                STATE.fetchCount = p;
+                this.divCardC.innerHTML = "";
+
+                await this.load();
+            }
+            const pageWrapper = (e) => page_listener(e);
+
+            this.pageContainers.forEach(pageContainer => {
+                pageContainer.addEventListener('click', pageWrapper);
+            })
+        }
+
+        create_page_navigation() {
+            this.pageContainers.forEach(pageContainer => {
+                let maxPage = 0, pages = [], range = 3;
+
+                if (STATE.resultsCount) {
+                    maxPage = Math.ceil(STATE.resultsCount / CONFIG.galleriesPerPage);
+                } else if (STATE.defaultRange) {
+                    const res = STATE.defaultRange / 4
+                    maxPage = Math.ceil(res / CONFIG.galleriesPerPage);
+                }
+
+                pageContainer.innerHTML = '';
+
+                if (!(STATE.fetchCount + range >= maxPage)) {
+                    if (STATE.fetchCount >= 2) {
+                        pages.push(1)
+                        pages.push('...')
+                        for (let i = -1; i <= range - 1; i++) {
+                            if (STATE.fetchCount + i >= maxPage) break
+                            if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
+                                pages.push(STATE.fetchCount + i);
+                            }
+                        }
+                    } else {
+                        for (let i = 0; i <= range; i++) {
+                            if (STATE.fetchCount + i >= maxPage) break
+                            if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
+                                pages.push(STATE.fetchCount + i);
+                            }
+                        }
+                    }
+
+                    pages.push('...')
+                    pages.push(maxPage)
+                } else {
+                    pages.push(1)
+                    pages.push('...')
+                    for (let i = -range; i <= 0; i++) {
+                        if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
+                            pages.push(STATE.fetchCount + i);
+                        }
+                    }
+                }
+
+                pages.forEach(p => {
+                    const a = document.createElement('a');
+                    a.textContent = p;
+                    if (p === STATE.fetchCount) a.style.color = 'var(--dimWhite)';
+                    pageContainer.appendChild(a);
+                })
+            })
         }
 
         async load() {
+            STATE.fetching = true
+
             let idsList = []
             idsList = await FETCH.nozomi({ fetchAll: false, getRange: true });
             const idJs = await Promise.all(idsList.map(id => FETCH.parsed_id_js(id)));
             if (!idJs.length) return
 
             const filteredIdJs = UTIL.filter_contents(idJs)
-            CREATE.card(filteredIdJs, self.divCardC);
+
+            await UTIL.check_avif_support()
+            await FETCH.gg()
+
+            CREATE.card(filteredIdJs, this.divCardC);
+
+            this.create_page_navigation()
+
+            STATE.fetchCount++
+            STATE.fetching = false
         }
     }
 
     async function main() {
-        await UTIL.check_avif_support()
-        await FETCH.gg()
-
         const hash = window.location.hash
 
         if (hash.includes("#/viewer")) {
@@ -890,8 +977,13 @@
             document.write(HTML.viewer)
             document.close();
         } else {
+            document.open();
+            document.write(HTML.gallery)
+            document.close();
+
             const gallery = new Gallery();
             gallery.load();
+            gallery.listener()
         }
     }
 
@@ -924,8 +1016,8 @@
         cardWrapWidth: 190,
         defaultQuery: "",
         filterNA: {
-            artist: true,
-            tag: true,
+            artist: false,
+            tag: false,
         }
     }
 
@@ -987,7 +1079,7 @@
                     scrollbar-width: thin;
                 }
 
-                .CardTableContainer table a {color: var(--dimWhite); scrollbar-width: thin;}
+                .CardTableContainer table a {color: var(--dimWhite); scrollbar-width: thin; overflow: hidden;}
                 .CardTableContainer table td {color: var(--dimWhite)}
                 .CardTagsContainer a {margin-right: 5%; text-decoration: none;}
                 .Card img {width: 100%; height: 220px; object-fit: cover; border-radius: var(--radius);}
