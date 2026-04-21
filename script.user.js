@@ -334,6 +334,10 @@
                 const entry = entries[0];
 
                 if (entry.isIntersecting && !STATE.fetching) {
+                    const page = this.get_hash()
+                    if (page) window.location.hash = `/?page=${page + 1}`;
+                    else window.location.hash = `/?page=${2}`;
+
                     observer.unobserve(entry.target);
 
                     xclass.load();
@@ -348,6 +352,14 @@
             });
 
             observer.observe(document.querySelector("#scrollSentinel"));
+        },
+        get_hash: function() {
+            const hash = window.location.hash; 
+            const paramsString = hash.split('?')[1]; 
+            const searchParams = new URLSearchParams(paramsString);
+            const page = searchParams.get('page');
+
+            return Number(page)
         }
     }
 
@@ -681,6 +693,36 @@
             exportSettingButton.addEventListener('click', export_setting);
             importSettingButton.addEventListener('click', import_setting);
         },
+        hash: function(xclass) {
+            window.addEventListener('hashchange', function() {
+                xclass.load()
+            }, false);
+        },
+        nav_bar: function(eClass) {
+            if (!eClass.divNavBarC) return;
+
+            eClass.divNavBarC.addEventListener('click', function(e) {
+                if (e.target.closest('#bi-list-open')) {
+                    eClass.divSideBar.classList.add('active');
+                    eClass.divSidebarOverlay.classList.add('active');
+                }
+                else if (e.target.closest('.search-icon')) {
+                    eClass.divSearchWindow.classList.toggle('active');
+                }
+                else {
+                    eClass.divSearchWindow.classList.remove('active');
+                }
+
+                eClass.divSidebarOverlay.addEventListener('click', () => {
+                    eClass.divSideBar.classList.remove('active');
+                    eClass.divSidebarOverlay.classList.remove('active');
+                }, { once: true });
+                eClass.svgBiClose.addEventListener('click', () => {
+                    eClass.divSideBar.classList.remove('active');
+                    eClass.divSidebarOverlay.classList.remove('active');
+                }, { once: true })
+            });
+        }
     }
 
     const CREATE = {
@@ -880,12 +922,10 @@
 
                 e.preventDefault();
                 const p = Number(anchor.textContent.trim());
-                if (p === STATE.fetchCount || STATE.fetching) return;
-
-                STATE.fetchCount = p;
+                if (p === STATE.fetchCount + 1 || STATE.fetching) return;
+                
                 this.divCardC.innerHTML = "";
-
-                await this.load();
+                window.location.hash = `/?page=${p}`;
             }
             const pageWrapper = (e) => page_listener(e);
 
@@ -941,7 +981,7 @@
                 pages.forEach(p => {
                     const a = document.createElement('a');
                     a.textContent = p;
-                    if (p === STATE.fetchCount) a.style.color = 'var(--dimWhite)';
+                    if (p === STATE.fetchCount + 1) a.style.color = 'var(--dimWhite)';
                     pageContainer.appendChild(a);
                 })
             })
@@ -949,6 +989,10 @@
 
         async load() {
             STATE.fetching = true
+
+            const page = UTIL.get_hash()
+
+            if (page) STATE.fetchCount = Number(page) - 1
 
             let idsList = []
             idsList = await FETCH.nozomi({ fetchAll: false, getRange: true });
@@ -964,12 +1008,23 @@
 
             this.create_page_navigation()
 
-            STATE.fetchCount++
             STATE.fetching = false
         }
     }
 
+    class DefaultElem {
+        constructor() {
+            this.divNavBarC = document.querySelector("div.NavbarContainer");
+            this.divSideBar = document.querySelector("div.Sidebar")
+            this.divSidebarOverlay = document.querySelector("div.SidebarOverlay") 
+            this.divSidebarOverlay = document.querySelector("div.SidebarOverlay") 
+            this.svgBiClose = document.querySelector("svg#bi-list-close") 
+            this.divSearchWindow = document.querySelector("div.SearchFloatingWindow")
+        }
+    }
+
     async function main() {
+        let xclass
         const hash = window.location.hash
 
         if (hash.includes("#/viewer")) {
@@ -981,10 +1036,16 @@
             document.write(HTML.gallery)
             document.close();
 
-            const gallery = new Gallery();
-            gallery.load();
-            gallery.listener()
+            xclass = new Gallery();
         }
+
+        xclass.load();
+        xclass.listener()
+        UTIL.observer(xclass)
+        LISTENER.hash(xclass)
+
+        const elemClass = new DefaultElem()
+        LISTENER.nav_bar(elemClass)
     }
 
     const STORAGE = {
