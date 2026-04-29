@@ -166,7 +166,39 @@
                 STATE.gg = extractGG();
                 resolve()
             })
-        }
+        },
+        suggestion: async function (query, checkValid = false) {
+            let field = 'global', term = query.replace(/_/g, " "), istag = false, jsonSuggestions = []
+
+            if (query.includes(':')) {
+                const sides = query.split(/:/);
+                field = sides[0];
+                term = sides[1];
+                istag = true
+            }
+            const chars = term.split('').map(i => UTIL.encode_query(i))
+            let url = `//tagindex.hitomi.la/${field}`;
+            if (chars.length) {
+                url += `/${chars.join('/')}`;
+            }
+            url += '.json';
+
+            jsonSuggestions = await this.get(url, { responseType: "json" })
+            if (checkValid) {
+                let isValid = false;
+                if (!istag) return [jsonSuggestions[0], isValid];
+                
+                for (let i = 0; i < jsonSuggestions.length; i++) {
+                    const suggest = jsonSuggestions[i];
+                    if (suggest[0] === term.replace(/_/g, " ") && suggest[2] === field) {
+                        isValid = true;
+                        break;
+                    }
+                }
+                return [jsonSuggestions[0], isValid];
+            }
+            return jsonSuggestions
+        },
     }
 
     const UTIL = {
@@ -226,7 +258,11 @@
         },
         extract_tag: function extract_tag(href) {
             const match = href.match(/\/tag\/(.*)-all.html/) || href.match(/.*%20(.*)/);
-            return encode_query(decodeURIComponent(match[1]));
+            if (!match) return ""
+
+            const res = this.encode_query(decodeURIComponent(match[1]));
+            if (!(res.includes(":"))) return `tag:${res}`
+            else return res
         },
         extract_table: function extract_table(a) {
             let match;
@@ -239,7 +275,7 @@
 
             match = hrefValue.match(/.*\/(.*)\/(.*)-all\.html$/); // eg, doujinshi:blue_archive
             if (match) {
-                return match[1] + ':' + encode_query(decodeURIComponent(match[2]));
+                return match[1] + ':' + this.encode_query(decodeURIComponent(match[2]));
             }
             console.log('No match found for href:', hrefValue);
             return null;
@@ -361,6 +397,14 @@
 
             return Number(page)
         },
+        get_query: function() {
+            const hash = window.location.hash; 
+            const paramsString = hash.split('?')[1]; 
+            const searchParams = new URLSearchParams(paramsString);
+            const query = searchParams.get('search');
+
+            return query
+        },
         load_default_query: function (divContainer, actualInput) {
             CONFIG.defaultQuery.split(/\s+/).forEach(query => {
                 CREATE.badge(query, divContainer, actualInput)
@@ -370,284 +414,89 @@
 
     const LISTENER = {
         search: function() {
-            let isFocust;
-
             divSearchWindow.addEventListener('click', (e) => {
                 if (e.target.closest(searchButtonName)) {
-                    SEARCH.search_post_process(divSearchInput, actualInput)
+                    xclass.init()
                     window.location.hash = `/?search=${STATE.term}`
                 }
-            })
-            divSearchWindow.addEventListener('keydown', (e) => {
-                if (e.target.closest(searchInputName)) {
-                    if (e.key !== 'Enter') return
+                else if (e.target.closest('.bi-x-circle-fill')){
+                    const container = e.target.closest(searchInputName)
+                    e.target.closest('.TagContainer').remove();
 
-                    for (const suggest of Array.from(divSuggestionC.children)) {
-                        if (suggest.classList.contains('SuggestionFocus')) {
-                            isFocust = true;
-                            break;
-                        }
+                    if (container.id === "Default") {
+                        const text = SEARCH.get_search_input_text(divDefaultSearchInput, defaultActualInput)
+                        UTIL.save_to_localstorage(defaultSaveButton, STORAGE.defaultQueryKey, text)
                     }
-
-                    if (!isFocust) {
-                        searchButton.click()
-                    }
-                    isFocust = false;
                 }
-            })
-        },
-        order: function order(optionOrderByDropdown) {
-            optionOrderByDropdown.forEach(option => {
-                option.addEventListener('click', function() {
-                    const list = option.text.toLowerCase().replace(/:/g, "").split(/\s+/)
-                    STATE.orderBy = `${list[0]}:${list[1]}`
-                    if (list[1] == "added") STATE.orderBy = ""
-                    else if (list[0] == "random") STATE.orderBy = "random"
-                })
-            })
-        },
-        picker: function picker(eye, add, ex, divDefaultInput, defaultActualInput, eyeText, eyeContainer, SaveDefQButton) {
-            STATE.isPickerActive = false;
-            let selectedTag = [];
-            let selectedType = [];
-
-            defaultActualInput.addEventListener('keydown', function(e) {
-                if (e.key !== 'Enter') return
-                SaveDefQButton.click()
-            })
-
-            SaveDefQButton.addEventListener('click', () => {
-                const text = get_search_input_text(divDefaultInput, defaultActualInput)
-                save_to_localstorage(SaveDefQButton, STORAGE.defaultQueryKey, text)
-            })
-
-            eyeContainer.addEventListener('click', () => {
-                if (STATE.isPickerActive) {
-                    eyeContainer.style.backgroundColor = 'transparent';
-                    eyeText.style.display = 'none';
-                    eye.style.fill = 'white';
-                } else {
-                    eyeContainer.style.backgroundColor = 'yellow';
-                    eyeText.style.display = 'block';
-                    eyeText.style.color = 'black';
-                    eye.style.fill = 'black';
+                else if (e.target.closest(saveButtonName)) {
+                    const text = SEARCH.get_search_input_text(divDefaultSearchInput, defaultActualInput)
+                    UTIL.save_to_localstorage(defaultSaveButton, STORAGE.defaultQueryKey, text)
                 }
+                else if (e.target.closest(eyeContainerName)) {
+                    if (STATE.isPickerActive) {
+                        eyeContainer.style.backgroundColor = 'transparent';
 
-                if (STATE.isPickerActive) {
-                    selectedTag.forEach(tag => {
-                        tag.style.border = ""
-                    })
-                    selectedType.forEach(type => {
-                        type.style.border = ""
-                    })
-                    selectedTag = []; selectedType = [];
-                }
-                STATE.isPickerActive = !STATE.isPickerActive;
-            })
-
-            document.addEventListener('click', async (e) => {
-                const tag = e.target.closest('.BadgeBlue');
-                const type = e.target.closest('table tr td a');
-                if (tag) {
-                    if (!STATE.isPickerActive) {
-                        const tagText = extract_tag(tag.href);
-                        tag_to_badge(tagText, divSearchInput, actualInput);
-
-                        if (!CONFIG.incrementTag) {
-                            searchButton.click();
-                        }
-                        return
-                    }
-
-
-                    e.preventDefault();
-
-                    if (tag.style.border === "") {
-                        tag.style.border = "solid yellow";
-                        selectedTag.push(tag);
+                        STATE.selectedTag.forEach(tag => {
+                            tag.style.border = ""
+                        })
+                        STATE.selectedType.forEach(type => {
+                            type.style.border = ""
+                        })
+                        STATE.selectedTag = []; STATE.selectedType = [];
                     } else {
-                        tag.style.border = "";
-                        selectedTag = selectedTag.filter(item => item !== tag);
+                        eyeContainer.style.backgroundColor = 'yellow';
+                        eyeText.style.color = 'black'
                     }
-                } else if (type) {
-                    if (!STATE.isPickerActive) {
-                        if (e.target.matches('a')) {
-                            const typeText = extract_table(type);
-                            tag_to_badge(typeText, divSearchInput, actualInput)
-                            if (!CONFIG.incrementTag) {
-                                searchButton.click()
+                    STATE.isPickerActive = !STATE.isPickerActive;
+                }
+                else if (e.target.closest(btnAddName)) {
+                    if (STATE.selectedTag.length) {
+                        STATE.selectedTag.forEach(tag => {
+                            const tagText = UTIL.extract_tag(tag.href);
+                            if (!CONFIG.defaultQuery.includes(tagText)) {
+                                CREATE.badge(tagText, divDefaultSearchInput, defaultActualInput)
                             }
-                        }
-                    }
-
-                    e.preventDefault();
-
-                    if (type.style.border === "") {
-                        type.style.border = "solid yellow"
-                        selectedType.push(type)
-                    }
-                    else if (type.style.border === "solid yellow") {
-                        type.style.border = ""
-                        selectedType = selectedType.filter(item => item !== type);
+                        })
+                        defaultSaveButton.click()
+                    } 
+                    if (STATE.selectedType.length) {
+                        STATE.selectedType.forEach(type => {
+                            const typeText = UTIL.extract_table(type);
+                            if (!CONFIG.defaultQuery.includes(typeText)) {
+                                CREATE.badge(typeText, divDefaultSearchInput, defaultActualInput)
+                            }
+                        })
+                        defaultSaveButton.click()
                     }
                 }
-            });
-
-            add.addEventListener('click', () => {
-                if (selectedTag.length) {
-                    selectedTag.forEach(tag => {
-                        const tagText = extract_tag(tag.href);
-                        if (!CONFIG.defaultQuery.includes(tagText)) {
-                            tag_to_badge(tagText, divDefaultInput, defaultActualInput)
-                        }
-                    })
-                    SaveDefQButton.click()
-                } 
-                if (selectedType.length) {
-                    selectedType.forEach(type => {
-                        const typeText = extract_table(type);
-                        if (!CONFIG.defaultQuery.includes(typeText)) {
-                            tag_to_badge(typeText, divDefaultInput, defaultActualInput)
-                        }
-                    })
-                    SaveDefQButton.click()
+                else if (e.target.closest(BtnExcludeName)) {
+                    if (STATE.selectedTag) {
+                        STATE.selectedTag.forEach(tag => {
+                            const tagText = UTIL.extract_tag(tag.href);
+                            const excludeText = `-${tagText}`;
+                            if (!CONFIG.defaultQuery.includes(excludeText)) {
+                                CREATE.badge(excludeText, divDefaultSearchInput, defaultActualInput)
+                            }
+                        })
+                        defaultSaveButton.click()
+                    } 
+                    if (STATE.selectedType) {
+                        STATE.selectedType.forEach(type => {
+                            const typeText = UTIL.extract_table(type);
+                            const excludeText = `-${typeText}`;
+                            if (!CONFIG.defaultQuery.includes(excludeText)) {
+                                CREATE.badge(excludeText, divDefaultSearchInput, defaultActualInput)
+                            }
+                        })
+                        defaultSaveButton.click()
+                    }
                 }
-            });
-            ex.addEventListener('click', () => {
-                if (selectedTag) {
-                    selectedTag.forEach(tag => {
-                        const tagText = extract_tag(tag.href);
-                        const excludeText = `-${tagText}`;
-                        if (!CONFIG.defaultQuery.includes(excludeText)) {
-                            tag_to_badge(excludeText, divDefaultInput, defaultActualInput)
-                        }
-                    })
-                    SaveDefQButton.click()
-                } 
-                if (selectedType) {
-                    selectedType.forEach(type => {
-                        const typeText = extract_table(type);
-                        const excludeText = `-${typeText}`;
-                        if (!CONFIG.defaultQuery.includes(excludeText)) {
-                            tag_to_badge(excludeText, divDefaultInput, defaultActualInput)
-                        }
-                    })
-                    SaveDefQButton.click()
-                }
-            });
-        },
-        suggestion: function suggestion(actualInput, divSuggestionC, divSearchInput) {
-            let requestCounter = 0;
-
-            actualInput.addEventListener('input', debounce(async function() {
-                document.querySelectorAll("div.SuggestionContainer").forEach(elem => {
-                    if (elem !== divSuggestionC) {
+                else {
+                    document.querySelectorAll(suggestionCName).forEach(elem => {
                         elem.style.display = 'none';
-                    }
-                });
-                divSuggestionC.textContent = "";
-                const text = actualInput.value;
-
-                const currentRequestId = ++requestCounter;
-
-                await get_search_suggestion(text, divSuggestionC, divSearchInput, actualInput);
-
-                if (currentRequestId !== requestCounter) return;
-
-                if (divSuggestionC.children.length > 0) {
-                    divSuggestionC.style.display = 'block';
-                } else {
-                    divSuggestionC.style.display = 'none';
+                    })
                 }
-
-            }, CONFIG.debounceTime));
-        },
-        pic_preview: function pic_preview_listener(pic, id, idsObj) {
-            async function updateDisplay(index, pic, files) {
-                function prefetchImage(url) {
-                    if (!url) return;
-                    const img = new Image();
-                    img.decoding = "async";
-                    img.loading = "eager";
-                    img.src = url;
-                }
-
-                if (index < 0 || index >= files.length) return;
-
-                const file = files[index];
-                const picture = pic.querySelector("picture")
-                const img = document.createElement("img")
-
-                picture.innerHTML = ""
-                picture.appendChild(img)
-
-                const url = get_preview_image(file);
-                if (url) img.src = url;
-
-                [1, -1].forEach(offset => {
-                    const nextIdx = (index + offset + files.length) % files.length;
-                    const nextFile = files[nextIdx];
-                    const nextUrl = get_preview_image(nextFile);
-                    prefetchImage(nextUrl);
-                });
-            }
-
-            let currentIndex = 0;
-            pic.addEventListener('click', async (e) => {
-                e.preventDefault();
-
-                const files = idsObj[id].previewFiles;
-                const info = await fetch_id_js(id)
-                const step = Math.round(info.files.length / CONFIG.picPreviewPerPage)
-                for (let i = 0; i < info.files.length; i += step) {
-                    files.push(info.files[i])
-                }
-
-                if (!files.length) return;
-
-                const rect = pic.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                
-                if (x < rect.width / 2) {
-                    currentIndex = (currentIndex - 1 + files.length) % files.length;
-                } else {
-                    currentIndex = (currentIndex + 1) % files.length;
-                }
-                
-                updateDisplay(currentIndex, pic, files);
-            });
-        },
-        menu_and_search: function menu_and_search_listener(menuBtnOpen, sidebar, overlay, menuBtnClose, svgSearch, searchWindow) {
-            menuBtnOpen.addEventListener('click', () => {
-                sidebar.classList.add('active');
-                overlay.classList.add('active');
-            });
-
-            menuBtnClose.addEventListener('click', () => {
-                sidebar.classList.remove('active');
-                overlay.classList.remove('active');
-            });
-
-            overlay.addEventListener('click', () => {
-                sidebar.classList.remove('active');
-                overlay.classList.remove('active');
-            });
-
-            svgSearch.onclick = (e) => {
-                e.stopPropagation();
-                searchWindow.classList.toggle('active');
-            };
-
-            searchWindow.onclick = (e) => {
-                e.stopPropagation();
-            };
-
-
-            window.onclick = (e) => {
-                if (!searchWindow.contains(e.target) && !svgSearch.contains(e.target) && !STATE.isPickerActive) {
-                    searchWindow.classList.remove('active');
-                }
-            };
+            })
         },
         setting_listener: function() {
             function update_card_style() {
@@ -706,7 +555,7 @@
             });
 
             update_card_style();
-            UTIL.load_default_query(divDefaultInput, defaultActualInput);
+            UTIL.load_default_query(divDefaultSearchInput, defaultActualInput);
 
             [STORAGE.cardWidthKey, STORAGE.cardWrapWidthKey].forEach(id => {
                 const el = document.getElementById(id);
@@ -719,7 +568,7 @@
             });
             divSideBar.addEventListener('click', (e) => {
                 if (e.target.closest("#SaveSettingButton")) {
-                    divDefaultInput.querySelectorAll('.TagContainer').forEach(el => el.remove());
+                    divDefaultSearchInput.querySelectorAll('.TagContainer').forEach(el => el.remove());
                     divSetting.querySelectorAll('input').forEach(input => {
                         let value;
                         if (input.type === "checkbox") {
@@ -734,7 +583,7 @@
                         CONFIG[input.id] = value;
                     });
                     update_card_style();
-                    UTIL.load_default_query(divDefaultInput, defaultActualInput);
+                    UTIL.load_default_query(divDefaultSearchInput, defaultActualInput);
                 }
                 else if (e.target.closest("#ExportSettingButton")) {
                     export_setting()
@@ -773,15 +622,140 @@
                 divSideBar.classList.remove('active');
                 divSidebarOverlay.classList.remove('active');
             })
+        },
+        suggestion: function (searchInput, actualInput, suggestionC,) {
+            let negList = [], isOr = false, suggestionIndex = -1;
+
+            searchInput.addEventListener('keydown', (e) => {
+                function apply_focus_class () {
+                    suggestionsArray.forEach(a => a.classList.remove('SuggestionFocus'));
+                    if (suggestionIndex >= 0 && suggestionsArray[suggestionIndex]) {
+                        suggestionsArray[suggestionIndex].classList.add('SuggestionFocus');
+                    }
+                };
+
+                const currentInput = e.target;
+                if (currentInput.tagName !== 'INPUT') return;
+
+                const inputsArray = Array.from(searchInput.querySelectorAll('input'));
+                const currentIndex = inputsArray.indexOf(currentInput);
+                const isSelectionEmpty = currentInput.selectionStart === currentInput.selectionEnd;
+                const suggestionsArray = Array.from(suggestionC.querySelectorAll('a'));
+                const max = suggestionsArray.length - 1;
+
+                if (e.key === 'Backspace' && isSelectionEmpty && currentInput.selectionStart === 0) {
+                    let tagToRemove = null;
+                    if (currentInput.closest(actualInputName)) {
+                        const tags = searchInput.querySelectorAll('.TagContainer');
+                        if (tags.length > 0) tagToRemove = tags[tags.length - 1];
+                    } else {
+                        const currentContainer = currentInput.closest('.TagContainer');
+                        if (currentContainer && currentContainer.previousElementSibling) {
+                            tagToRemove = currentContainer.previousElementSibling;
+                        }
+                    }
+
+                    if (tagToRemove && tagToRemove.classList.contains('TagContainer')) {
+                        e.preventDefault();
+                        const badge = tagToRemove.querySelector('span');
+                        let extractedText = badge.outerText;
+                        tagToRemove.remove();
+                        
+                        actualInput.value = extractedText + actualInput.value;
+                        actualInput.focus();
+                        actualInput.setSelectionRange(extractedText.length, extractedText.length);
+                        return;
+                    }
+                }
+                if (e.key === 'ArrowLeft' && isSelectionEmpty && currentInput.selectionStart === 0) {
+                    e.preventDefault();
+                    let nextIndex = (currentIndex - 1 + inputsArray.length) % inputsArray.length;
+                    const targetInput = inputsArray[nextIndex];
+                    targetInput.focus();
+                    targetInput.setSelectionRange(targetInput.value.length, targetInput.value.length);
+                    return;
+                }
+                if (e.key === 'ArrowRight' && isSelectionEmpty && currentInput.selectionStart === currentInput.value.length) {
+                    e.preventDefault();
+                    let nextIndex = (currentIndex + 1) % inputsArray.length;
+                    const targetInput = inputsArray[nextIndex];
+                    targetInput.focus();
+                    targetInput.setSelectionRange(targetInput.value.length, targetInput.value.length);
+                    return;
+                }
+                if ((e.key === 'Tab' && e.shiftKey) || e.key === 'ArrowUp') {
+                    if (suggestionsArray.length === 0) return;
+                    e.preventDefault();
+                    suggestionIndex = (suggestionIndex <= 0) ? max : suggestionIndex - 1;
+                    apply_focus_class();
+                }
+                else if (e.key === 'Tab' || e.key === 'ArrowDown') {
+                    if (suggestionsArray.length === 0) return;
+                    e.preventDefault();
+                    suggestionIndex = (suggestionIndex >= max) ? 0 : suggestionIndex + 1;
+                    apply_focus_class();
+                }
+                else if (e.key === 'Enter') {
+                    if (suggestionIndex >= 0 && suggestionIndex < suggestionsArray.length) {
+                        e.preventDefault();
+                        suggestionsArray[suggestionIndex].click();
+                        suggestionIndex = -1;
+                    } 
+                    else {
+                        searchButton.click();
+                    }
+                }
+                else {
+                    suggestionIndex = -1;
+                    suggestionsArray.forEach(a => a.classList.remove('SuggestionFocus'));
+                }
+            })
+
+            searchInput.addEventListener('input', UTIL.debounce(async () => {
+                negList, isOr = await CREATE.suggestion(suggestionC, actualInput, searchInput)
+            }, CONFIG.debounceTime))
+
+            suggestionC.addEventListener('click', async (e) => {
+                const suggestion = e.target.closest('.Suggestion')
+                if (!suggestion) return
+
+                let query = suggestion.dataset.href
+                query = negList.includes(query) ? `-${query}` : query
+
+                suggestionC.textContent = "";
+
+                if (!(query.includes(":"))) {
+                    actualInput.value = `${query}:`
+                    negList, isOr = await CREATE.suggestion(suggestionC, actualInput, searchInput)
+                } else {
+                    suggestionC.style.display = 'none';
+                    if (isOr) {
+                        CREATE.badge("|", searchInput, actualInput, true)
+                    }
+                    CREATE.badge(query, searchInput, actualInput)
+                    actualInput.value = ''
+                }
+
+                actualInput.focus();
+                searchInput.scrollLeft = searchInput.scrollWidth;
+            })
+        },
+        order: function() {
+            selectOrder.addEventListener('click', (e) => {
+                const currentOption = e.target;
+                if (currentOption.tagName !== 'OPTION') return;
+
+                const list = currentOption.text.toLowerCase().replace(/:/g, "").split(/\s+/)
+                STATE.orderBy = `${list[0]}:${list[1]}`
+                if (list[1] == "added") STATE.orderBy = ""
+                else if (list[0] == "random") STATE.orderBy = "random"
+            })
         }
     }
 
     const CREATE = {
         badge: function (query, divContainer, actualInput, isOr = false) {
             if (!query.length) return
-
-            let existingInput = actualInput.value.split(/\s+/)
-            if (!isOr && existingInput.includes(query)) return
 
             const spanExists = [...divContainer.querySelectorAll("span")]
                 .some(span => span.textContent.trim() === query)
@@ -842,6 +816,7 @@
                     const aTag = document.createElement('a');
                     aTag.className = 'BadgeBlue';
                     aTag.textContent = tag.text
+                    aTag.href = tag.url
 
                     container.appendChild(aTag);
                 });
@@ -907,6 +882,89 @@
                 divCardC.appendChild(clone);
             })
         },
+        suggestion: async function(suggestionC, actualInput, searchInput) {
+            document.querySelectorAll(suggestionCName).forEach(elem => {
+                if (elem !== suggestionC) {
+                    elem.style.display = 'none';
+                }
+            });
+            suggestionC.textContent = "";
+            const text = actualInput.value;
+
+            const inputList = text.split(/\s+/)
+            let newInputList = [], negList = [], posList = [], isNegative = false, isOr = false
+            inputList.forEach(term => {
+                if (term.startsWith("-")) {
+                    term = term.replace(/^-/, "")
+                    negList.push(term)
+                    isNegative = true
+                } else {
+                    posList.push(term)
+                }
+                newInputList.push(term)
+            })
+
+            if (newInputList.length >= 2) {
+                const rmLastList = newInputList.slice(0, newInputList.length - 1)
+                for (let value of rmLastList) {
+                    let [suggestions, boolSuccess] = await FETCH.suggestion(value, true)
+                    if (!boolSuccess) return
+
+                    let query = `${suggestions[2]}:${suggestions[0]}`
+                    query = negList.includes(query) ? `-${query}` : query
+                    CREATE.badge(query, searchInput, actualInput)
+                    actualInput.value = (actualInput.value).replace(`${value} `, "")
+                    if (query.startsWith("-")) actualInput.value = actualInput.value.replace("-", "")
+                }
+            }
+
+            const namespaces = ['artist', 'group', 'type', 'character', 'series', 'tag', 'female', 'male', 'language'];
+
+            const validNS = new Set()
+            namespaces.forEach(ns => {
+                const isHalfLonger = (ns.length / 2) <= text.length
+                if (isHalfLonger && ns.includes(text)) validNS.add(ns)
+            })
+
+            let lastInput = newInputList.at(-1);
+            if (lastInput.includes("|")) isOr = true; lastInput = lastInput.replace("|", "")
+            const suggestions = await FETCH.suggestion(lastInput)
+
+            Array.from(validNS).forEach(ns => {
+                suggestions.unshift([ns, 0, "type", true])
+            })
+
+            const re = new RegExp(lastInput.replace(/_/g, " "), 'gi');
+
+            const template = document.querySelector('#suggestion-template');
+            suggestions.forEach(suggestion => {
+                const clone = template.content.cloneNode(true);
+                const aS = clone.querySelector('.Suggestion');
+                const spanStext = clone.querySelector('.SuggestionText');
+                const spanSarea = clone.querySelector('.SuggestionArea');
+
+                spanStext.innerHTML = suggestion[0].replace(re, str => `<strong>${str}</strong>`);
+                spanSarea.textContent = suggestion[2];
+                if (suggestion[3]) {
+                    aS.dataset.href = `${suggestion[0]}`
+                } else {
+                    aS.dataset.href = `${suggestion[2]}:${suggestion[0]}`
+                }
+
+                suggestionC.appendChild(clone);
+            });
+
+            const rect = searchInput.getBoundingClientRect();
+            suggestionC.style.top = rect.top - 7 + 'px';
+            suggestionC.style.width = rect.width + 'px';
+
+            if (suggestionC.children.length > 0) {
+                suggestionC.style.display = 'block';
+            } else {
+                suggestionC.style.display = 'none';
+            }
+            return negList, isOr
+        }
     }
 
     const SEARCH = {
@@ -1182,7 +1240,7 @@
             
             if (isRandom) {
                 return random_access(results);
-            } else {
+            } else if (!STATE.orderBy || STATE.orderBy === 'date') {
                 results.sort((a, b) => b - a);
             }
 
@@ -1194,10 +1252,12 @@
         search_post_process: function(divSearchInput, actualInput) {
             STATE.fetchCount = 0
             STATE.randomUsed = new Set()
-            STATE.term = this.get_search_input_text(divSearchInput, actualInput, true)
+            STATE.term = this.get_search_input_text(divSearchInput, actualInput, true, true)
         },
-        get_search_input_text: function(divSearchInput, actualInput, shouldDefQuery = false) {
+        get_search_input_text: function(divSearchInput, actualInput, shouldDefQuery = false, shouldQuery = false) {
             function clean_text(text) {
+                if (!text) return ""
+
                 text = UTIL.replace_smart_quotes(text)
                 text = text.toLowerCase().trim()
                 text = text.replace(/\n/g, " ")
@@ -1212,15 +1272,20 @@
                 const res = Array.from(set).join(' ')
                 return res
             }
-            let tagQuery = "", inputQuery = "", res = ""
+
+            let tagQuery = "", inputQuery = "", res = "", temp = ""
             const badges = divSearchInput.querySelectorAll('span');
             badges.forEach(badge => {
                 tagQuery += clean_text(badge.textContent) + " ";
             });
             inputQuery = clean_text(actualInput.value)
 
-            if (shouldDefQuery) res = merge_text(`${tagQuery} ${inputQuery} ${clean_text(CONFIG.defaultQuery)}`)
-            else res = merge_text(`${tagQuery} ${inputQuery}`)
+            temp += `${tagQuery} ${inputQuery}`
+
+            if (shouldDefQuery) temp += ` ${clean_text(CONFIG.defaultQuery)}`
+            if (shouldQuery) temp += ` ${clean_text(UTIL.get_query())}`
+
+            res = merge_text(temp)
 
             return res
         }
@@ -1234,35 +1299,74 @@
             this.overlay = document.querySelector('.SidebarOverlay');
             this.svgSearch = document.querySelector('.search-icon')
             this.divInputC = document.querySelector("div.InputContainer#Search")
-            this.divDefaultSuggestionC = document.querySelector("div.SuggestionContainer#Default")
             this.divCardC = document.querySelector("div.CardContainer")
-            this.defaultSaveButton = document.querySelector("#SaveDefQButton")
             this.aResCount = document.querySelector("a.ResultsCount")
-            this.eyeContainer = document.querySelector("div.EyeContainer")
             this.svgEye = document.querySelector("div.EyeContainer .eye")
-            this.eyeText = document.querySelector("div.EyeContainer a")
-            this.buttonAdd = document.querySelector("button.BtnAdd")
-            this.buttonEx = document.querySelector("button.BtnExclude")
-            this.optionOrderByDropdown = document.querySelectorAll("#orderbydropdown option")
             this.pageContainers = document.querySelectorAll('.PageContainer');
         }
 
-        listener() {
-            const page_listener = async (e) => {
-                const anchor = e.target.closest('a');
-                if (!anchor) return 
-
-                e.preventDefault();
-                const p = Number(anchor.textContent.trim());
-                if (p === STATE.fetchCount + 1 || STATE.fetching) return;
-                
-                this.divCardC.innerHTML = "";
-                window.location.hash = `/?page=${p}`;
-            }
-            const pageWrapper = (e) => page_listener(e);
-
+        page_listener() {
             this.pageContainers.forEach(pageContainer => {
-                pageContainer.addEventListener('click', pageWrapper);
+                pageContainer.addEventListener('click', async (e) => {
+                    const anchor = e.target.closest('a');
+                    if (!anchor) return 
+
+                    e.preventDefault();
+                    const p = Number(anchor.textContent.trim());
+                    if (p === STATE.fetchCount + 1 || STATE.fetching) return;
+                    
+                    this.divCardC.innerHTML = "";
+                    window.location.hash = `/?page=${p}`;
+                });
+            })
+        }
+
+        picker_listener() {
+            this.divCardC.addEventListener('click', (e) => {
+                const tag = e.target.closest('.BadgeBlue');
+                const type = e.target.closest('table tr td a');
+                if (tag) {
+                    e.preventDefault();
+
+                    if (!STATE.isPickerActive) {
+                        const tagText = UTIL.extract_tag(tag.href);
+                        CREATE.badge(tagText, divSearchInput, actualInput);
+
+                        if (!CONFIG.incrementTag) {
+                            searchButton.click();
+                        }
+                        return
+                    }
+
+                    if (tag.style.border === "") {
+                        tag.style.border = "solid yellow";
+                        STATE.selectedTag.push(tag);
+                    } else {
+                        tag.style.border = "";
+                        STATE.selectedTag = STATE.selectedTag.filter(item => item !== tag);
+                    }
+                } else if (type) {
+                    e.preventDefault();
+
+                    if (!STATE.isPickerActive) {
+                        if (e.target.matches('a')) {
+                            const typeText = UTIL.extract_table(type);
+                            CREATE.badge(typeText, divSearchInput, actualInput)
+                            if (!CONFIG.incrementTag) {
+                                searchButton.click()
+                            }
+                        }
+                    }
+
+                    if (type.style.border === "") {
+                        type.style.border = "solid yellow"
+                        STATE.selectedType.push(type)
+                    }
+                    else if (type.style.border === "solid yellow") {
+                        type.style.border = ""
+                        STATE.selectedType = STATE.selectedType.filter(item => item !== type);
+                    }
+                }
             })
         }
 
@@ -1319,10 +1423,15 @@
             })
         }
 
+        init() {
+            STATE.fetching = true
+            SEARCH.search_post_process(divSearchInput, actualInput)
+            this.divCardC.innerHTML = ""
+        }
+
         async load() {
             STATE.fetching = true
 
-            SEARCH.search_post_process(divSearchInput, actualInput)
             const page = UTIL.get_hash()
 
             if (page) STATE.fetchCount = Number(page) - 1
@@ -1393,6 +1502,8 @@
         match: "https://hitomi.la/robots.txt",
         orderBy: "",
         term: "",
+        selectedTag: [],
+        selectedType: [],
         indexObj: {},
         randomUsed: new Set(),
         gg: new Function()
@@ -1605,6 +1716,7 @@ input:focus {
     border-radius: var(--radius);
     padding: 5px;
     gap: 5px;
+    cursor: pointer;
 }
 
 .EyeContainer a {
@@ -1749,6 +1861,7 @@ span svg {
 .CardTagsContainer a {
     margin-right: 5%;
     text-decoration: none;
+    color: var(--white);
 }
 
 .Card img {
@@ -1756,6 +1869,7 @@ span svg {
     height: 220px;
     object-fit: cover;
     border-radius: var(--radius);
+    filter: brightness(0);
 }
 
 .PageContainer a {
@@ -2055,7 +2169,7 @@ a {
                 <input id="Default" class="ActualInput" type="text">
             </div>
             <button class="BtnGreenOut" id="SaveDefQButton" type="button">Save</button>
-            <div id="Default"class="SuggestionContainer"></div>
+            <div id="Default" class="SuggestionContainer"></div>
         </div>
         <select id="orderbydropdown">
             <option value="">Order by:</option>
@@ -2105,6 +2219,12 @@ a {
             </g>
         </svg>
     </div>
+    <template id="suggestion-template">
+        <a class="Suggestion">
+            <span class="SuggestionText"></span>
+            <span class="SuggestionArea"></span>
+        </a>
+    </template>
     <div id="main"></div>
 </body>
 </html>`,
@@ -2175,34 +2295,48 @@ a {
     document.head.appendChild(style);
 
     const searchButtonName = "#SearchButton"
-    const searchInputName = "div.SearchInput#Search"
-    const actualInputName = "input.ActualInput#Search"
-    const suggestionCName = "div.SuggestionContainer#Search"
+    const searchInputName = "div.SearchInput"
+    const actualInputName = "input.ActualInput"
+    const suggestionCName = "div.SuggestionContainer"
     const mainName = "div#main"
     const cssMainName = "style#main"
+    const saveButtonName = "#SaveDefQButton"
+    const eyeContainerName = "div.EyeContainer"
+    const btnAddName = "button.BtnAdd"
+    const BtnExcludeName = "button.BtnExclude"
 
     const searchButton = document.querySelector(searchButtonName);
     const divNavBarC = document.querySelector("div.NavbarContainer");
     const divSideBar = document.querySelector("div.Sidebar")
-    const divSearchInput = document.querySelector(searchInputName);
+    const divSearchInput = document.querySelector(`${searchInputName}#Search`)
+    const divDefaultSearchInput = document.querySelector(`${searchInputName}#Default`);
     const divSidebarOverlay = document.querySelector("div.SidebarOverlay") 
     const svgBiClose = document.querySelector("svg#bi-list-close") 
     const divSearchWindow = document.querySelector("div.SearchFloatingWindow")
     const divSetting= document.querySelector("div.Setting");
-    const divDefaultInput = document.querySelector("div.SearchInput#Default");
     const saveSettingButton = document.querySelector("#SaveSettingButton")
     const exportSettingButton = document.querySelector("#ExportSettingButton")
     const importSettingButton = document.querySelector("#ImportSettingButton")
     const divDefaultInputC = document.querySelector("div.InputContainer#Default");
-    const defaultActualInput = document.querySelector("input.ActualInput#Default")
-    const actualInput = document.querySelector(actualInputName)
-    const divSuggestionC = document.querySelector(suggestionCName)
+    const defaultActualInput = document.querySelector(`${actualInputName}#Default`)
+    const actualInput = document.querySelector(`${actualInputName}#Search`)
+    const divSuggestionC = document.querySelector(`${suggestionCName}#Search`)
+    const divDefaultSuggestionC = document.querySelector(`${suggestionCName}#Default`)
     const divMain = document.querySelector(mainName)
     const styleMain = document.querySelector(cssMainName)
+    const defaultSaveButton = document.querySelector("#SaveDefQButton")
+    const eyeContainer = document.querySelector(eyeContainerName)
+    const buttonAdd = document.querySelector(btnAddName)
+    const buttonEx = document.querySelector(BtnExcludeName)
+    const eyeText = document.querySelector(`${eyeContainerName} a`)
+    const selectOrder = document.querySelector("select#orderbydropdown")
 
     LISTENER.nav_bar()
     LISTENER.setting_listener()
-    LISTENER.search()
+    LISTENER.search(divSuggestionC, actualInput, divSearchInput)
+    LISTENER.suggestion(divSearchInput, actualInput, divSuggestionC)
+    LISTENER.suggestion(divDefaultSearchInput, defaultActualInput, divDefaultSuggestionC)
+    LISTENER.order()
 
     let xclass
     const hash = window.location.hash
@@ -2217,8 +2351,10 @@ a {
         xclass = new Gallery();
     }
 
+    xclass.init()
     xclass.load();
-    xclass.listener()
+    xclass.page_listener()
+    xclass.picker_listener(STATE.selectedTag, STATE.selectedType)
     UTIL.observer(xclass)
     LISTENER.hash(xclass)
 })()
