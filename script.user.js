@@ -36,6 +36,7 @@
                 parodys: [],
                 tags: [],
                 pictures: [],
+                id: "",
             }
             const info = await FETCH.id_js(id)
             const isJapanese = navigator.language && navigator.language.startsWith('ja');
@@ -78,6 +79,8 @@
             if (info.files) {
                 res.pictures = [...info.files]
             }
+
+            res.id = info.id
 
             return res
         },
@@ -370,7 +373,7 @@
                 const entry = entries[0];
 
                 if (entry.isIntersecting && !STATE.fetching) {
-                    const page = this.get_hash()
+                    const page = this.get_hash('page')
                     if (page) window.location.hash = `/?page=${page + 1}`;
                     else window.location.hash = `/?page=${2}`;
 
@@ -389,11 +392,11 @@
 
             observer.observe(document.querySelector("#scrollSentinel"));
         },
-        get_hash: function() {
+        get_hash: function(param) {
             const hash = window.location.hash; 
             const paramsString = hash.split('?')[1]; 
             const searchParams = new URLSearchParams(paramsString);
-            const page = searchParams.get('page');
+            const page = searchParams.get(param);
 
             return Number(page)
         },
@@ -750,6 +753,33 @@
                 if (list[1] == "added") STATE.orderBy = ""
                 else if (list[0] == "random") STATE.orderBy = "random"
             })
+        },
+        preview: function(index, pic, files) {
+            function prefetch(url) {
+                if (!url) return;
+                const img = new Image();
+                img.decoding = "async";
+                img.loading = "eager";
+                img.src = url;
+            }
+
+            if (index < 0 || index >= files.length) return;
+
+            const file = files[index];
+
+            const img = document.createElement("img")
+            pic.innerHTML = ""
+            pic.appendChild(img)
+
+            const url = UTIL.decrypt_picture(file);
+            if (url) img.src = url;
+
+            [1, -1].forEach(offset => {
+                const nextIdx = (index + offset + files.length) % files.length;
+                const nextFile = files[nextIdx];
+                const nextUrl = UTIL.decrypt_picture(nextFile);
+                prefetch(nextUrl);
+            });
         }
     }
 
@@ -860,6 +890,9 @@
             idJsList.forEach(idJs => {
                 const clone = template.content.cloneNode(true);
 
+                const divCard = clone.querySelector("div.Card")
+                divCard.dataset.id = idJs.id
+
                 const aCardTitle = clone.querySelector('.CardTitle');
                 aCardTitle.textContent = idJs.title[0].text;
                 aCardTitle.href = idJs.title[0].url;
@@ -964,6 +997,86 @@
                 suggestionC.style.display = 'none';
             }
             return negList, isOr
+        },
+        page_navigation: function(pageContainer) {
+            let maxPage = 0, pages = [], range = 3;
+
+            if (STATE.resultsCount) {
+                maxPage = Math.ceil(STATE.resultsCount / CONFIG.galleriesPerPage);
+            } else if (STATE.defaultRange) {
+                const res = STATE.defaultRange / 4
+                maxPage = Math.ceil(res / CONFIG.galleriesPerPage);
+            }
+
+            pageContainer.innerHTML = '';
+
+            if (!(STATE.fetchCount + range >= maxPage)) {
+                if (STATE.fetchCount >= 2) {
+                    pages.push(1)
+                    pages.push('...')
+                    for (let i = -1; i <= range - 1; i++) {
+                        if (STATE.fetchCount + i >= maxPage) break
+                        if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
+                            pages.push(STATE.fetchCount + i);
+                        }
+                    }
+                } else {
+                    for (let i = 0; i <= range; i++) {
+                        if (STATE.fetchCount + i >= maxPage) break
+                        if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
+                            pages.push(STATE.fetchCount + i);
+                        }
+                    }
+                }
+
+                pages.push('...')
+                pages.push(maxPage)
+            } else {
+                pages.push(1)
+                pages.push('...')
+                for (let i = -range; i <= 0; i++) {
+                    if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
+                        pages.push(STATE.fetchCount + i);
+                    }
+                }
+            }
+
+            pages.forEach(p => {
+                const a = document.createElement('a');
+                a.textContent = p;
+                if (p === STATE.fetchCount + 1) a.style.color = 'var(--dimWhite)';
+                pageContainer.appendChild(a);
+            })
+        },
+        viewer_header: function(viewer, idJs) {
+            viewer.aTitle.textContent = idJs.title[0]
+
+            const artists = this.atag_for_table(idJs.artists)
+            viewer.aArtist.insertAdjacentHTML(
+                'beforeend',
+                artists.join('')
+            );
+
+            this.table_row(viewer.table, "language", this.atag_for_table(idJs.language));
+            this.table_row(viewer.table, "type", this.atag_for_table(idJs.type));
+            this.table_row(viewer.table, "series", this.atag_for_table(idJs.parodys));
+
+            if (idJs.tags && idJs.tags.length) {
+                this.table_row(
+                    viewer.table,
+                    "tags",
+                    this.atag_for_table(idJs.type, { className: "BadgeBlue" }),
+                    "CardTagsContainer"
+                );
+            }
+            if (idJs.characters && idJs.characters.length) {
+                this.table_row(
+                    viewer.table,
+                    "characters",
+                    this.atag_for_table(idJs.parodys, { className: "BadgeBlue" }),
+                    "CardTagsContainer"
+                );
+            }
         }
     }
 
@@ -1293,38 +1406,25 @@
 
     class Gallery {
         constructor() {
-            this.menuBtnOpen = document.querySelector('#bi-list-open');
-            this.menuBtnClose = document.querySelector('#bi-list-close');
-            this.sidebar = document.querySelector('.Sidebar');
-            this.overlay = document.querySelector('.SidebarOverlay');
-            this.svgSearch = document.querySelector('.search-icon')
-            this.divInputC = document.querySelector("div.InputContainer#Search")
+            this.cardName = "div.Card"
+            this.cardImgUrlName = "a.CardImageUrl"
+            this.cardTitleName = "a.CardTitle"
+
             this.divCardC = document.querySelector("div.CardContainer")
             this.aResCount = document.querySelector("a.ResultsCount")
-            this.svgEye = document.querySelector("div.EyeContainer .eye")
             this.pageContainers = document.querySelectorAll('.PageContainer');
+            this.acardImgUrl = document.querySelector(this.cardImgUrlName)
         }
 
-        page_listener() {
-            this.pageContainers.forEach(pageContainer => {
-                pageContainer.addEventListener('click', async (e) => {
-                    const anchor = e.target.closest('a');
-                    if (!anchor) return 
+        listener() {
+            let currentIndex = 0;
 
-                    e.preventDefault();
-                    const p = Number(anchor.textContent.trim());
-                    if (p === STATE.fetchCount + 1 || STATE.fetching) return;
-                    
-                    this.divCardC.innerHTML = "";
-                    window.location.hash = `/?page=${p}`;
-                });
-            })
-        }
-
-        picker_listener() {
             this.divCardC.addEventListener('click', (e) => {
                 const tag = e.target.closest('.BadgeBlue');
                 const type = e.target.closest('table tr td a');
+                const img = e.target.closest(this.cardImgUrlName)
+                const title = e.target.closest(this.cardTitleName)
+
                 if (tag) {
                     e.preventDefault();
 
@@ -1366,60 +1466,52 @@
                         type.style.border = ""
                         STATE.selectedType = STATE.selectedType.filter(item => item !== type);
                     }
+                } else if (img) {
+                    e.preventDefault();
+
+                    const card = e.target.closest(this.cardName)
+                    const id = Number(card.dataset.id) 
+
+                    const files = []
+                    const idJs = STATE.idJsObj[id]
+                    const step = Math.round(idJs.pictures.length / CONFIG.picPreviewPerPage)
+                    for (let i = 0; i < idJs.pictures.length; i += step) {
+                        files.push(idJs.pictures[i])
+                    }
+
+                    if (!files.length) return;
+
+                    const rect = img.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    
+                    if (x < rect.width / 2) {
+                        currentIndex = (currentIndex - 1 + files.length) % files.length;
+                    } else {
+                        currentIndex = (currentIndex + 1) % files.length;
+                    }
+                    
+                    LISTENER.preview(currentIndex, img, files);
+                } else if (title) {
+                    e.preventDefault();
+
+                    divMain.innerHTML = HTML.viewer
+                    styleMain.textContent = CSS.viewer
+                    xclass = new Viewer();
                 }
             })
-        }
 
-        create_page_navigation() {
             this.pageContainers.forEach(pageContainer => {
-                let maxPage = 0, pages = [], range = 3;
+                pageContainer.addEventListener('click', async (e) => {
+                    const anchor = e.target.closest('a');
+                    if (!anchor) return 
 
-                if (STATE.resultsCount) {
-                    maxPage = Math.ceil(STATE.resultsCount / CONFIG.galleriesPerPage);
-                } else if (STATE.defaultRange) {
-                    const res = STATE.defaultRange / 4
-                    maxPage = Math.ceil(res / CONFIG.galleriesPerPage);
-                }
-
-                pageContainer.innerHTML = '';
-
-                if (!(STATE.fetchCount + range >= maxPage)) {
-                    if (STATE.fetchCount >= 2) {
-                        pages.push(1)
-                        pages.push('...')
-                        for (let i = -1; i <= range - 1; i++) {
-                            if (STATE.fetchCount + i >= maxPage) break
-                            if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
-                                pages.push(STATE.fetchCount + i);
-                            }
-                        }
-                    } else {
-                        for (let i = 0; i <= range; i++) {
-                            if (STATE.fetchCount + i >= maxPage) break
-                            if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
-                                pages.push(STATE.fetchCount + i);
-                            }
-                        }
-                    }
-
-                    pages.push('...')
-                    pages.push(maxPage)
-                } else {
-                    pages.push(1)
-                    pages.push('...')
-                    for (let i = -range; i <= 0; i++) {
-                        if (STATE.fetchCount + i >= 1 && STATE.fetchCount + i <= maxPage) {
-                            pages.push(STATE.fetchCount + i);
-                        }
-                    }
-                }
-
-                pages.forEach(p => {
-                    const a = document.createElement('a');
-                    a.textContent = p;
-                    if (p === STATE.fetchCount + 1) a.style.color = 'var(--dimWhite)';
-                    pageContainer.appendChild(a);
-                })
+                    e.preventDefault();
+                    const p = Number(anchor.textContent.trim());
+                    if (p === STATE.fetchCount + 1 || STATE.fetching) return;
+                    
+                    this.divCardC.innerHTML = "";
+                    window.location.hash = `/?page=${p}`;
+                });
             })
         }
 
@@ -1432,7 +1524,7 @@
         async load() {
             STATE.fetching = true
 
-            const page = UTIL.get_hash()
+            const page = UTIL.get_hash('page')
 
             if (page) STATE.fetchCount = Number(page) - 1
 
@@ -1443,16 +1535,46 @@
                 idsList = await FETCH.nozomi({ fetchAll: false, getRange: true });
             }
 
-            const idJs = await Promise.all(idsList.map(id => FETCH.parsed_id_js(id)));
-            if (!idJs.length) return
+            const idJsList = await Promise.all(idsList.map(id => FETCH.parsed_id_js(id)));
+            if (!idJsList.length) return
 
-            const filteredIdJs = UTIL.filter_contents(idJs)
+            idJsList.forEach(idJs => {STATE.idJsObj[idJs.id] = idJs})
+
+            const filteredIdJs = UTIL.filter_contents(idJsList)
 
             CREATE.card(filteredIdJs, this.divCardC);
 
-            this.create_page_navigation()
+            this.pageContainers.forEach(pageContainer => {
+                CREATE.page_navigation(pageContainer)
+            })
 
             STATE.fetching = false
+        }
+    }
+
+    class Viewer {
+        constructor() {
+            this.divImageContainer = document.querySelector("div.ImageContainer");
+            this.divHeaderInfoContainer = document.querySelector("div.HeaderInfoContainer");
+            this.divInfo = document.querySelector("div.Info");
+            this.aArtist = document.querySelector("a.Artist");
+            this.aTitle = document.querySelector("a.Title");
+            this.divHeaderContainer = document.querySelector("div.HeaderContainer");
+            this.divRelatedContainer = document.querySelector("div.RelatedContainer");
+            this.divPages = document.querySelectorAll("div.Page");
+            this.table = document.querySelector("table");
+        }
+
+        init() {}
+        listener() {}
+        async load() {
+            const id = UTIL.get_hash('id')
+
+            let idJs = {}
+            if (id in STATE.idJsObj) idJs = STATE.idJsObj[id]
+            else idJs = await FETCH.parsed_id_js(id)
+
+            if (!(idJs || Object.keys(idJs).length)) return
         }
     }
 
@@ -1504,6 +1626,7 @@
         term: "",
         selectedTag: [],
         selectedType: [],
+        idJsObj: {},
         indexObj: {},
         randomUsed: new Set(),
         gg: new Function()
@@ -1869,7 +1992,7 @@ span svg {
     height: 220px;
     object-fit: cover;
     border-radius: var(--radius);
-    filter: brightness(0);
+    /* filter: brightness(0); */
 }
 
 .PageContainer a {
@@ -1986,6 +2109,7 @@ body {
     flex-direction: column;
     gap: 5px;
     background-color: hsl(0, 0%, 10%);
+    margin: 0;
 }
 table {
     width: 100%;
@@ -2240,7 +2364,7 @@ a {
 <div id="scrollSentinel"></div>
 
 <template id="card-template">
-    <div class="Card">
+    <div class="Card" data-id="">
         <a class="CardImageUrl" target="_blank">
             <img src="" alt="">
         </a>
@@ -2272,7 +2396,9 @@ a {
     <div class="HeaderInfoContainer">
         <a class="Title"></a>
         <a class="Artist"></a>
-        <div class="Info"></div>
+        <div class="Info">
+            <table></table>
+        </div>
     </div>
 </div>
 <div class="Page"></div>
@@ -2341,10 +2467,10 @@ a {
     let xclass
     const hash = window.location.hash
 
-    if (hash.includes("#/viewer")) {
+    if (hash.includes("/?id=")) {
         divMain.innerHTML = HTML.viewer
         styleMain.textContent = CSS.viewer
-        // xclass = new Viewer();
+        xclass = new Viewer();
     } else {
         divMain.innerHTML = HTML.gallery
         styleMain.textContent = CSS.gallery
@@ -2353,8 +2479,7 @@ a {
 
     xclass.init()
     xclass.load();
-    xclass.page_listener()
-    xclass.picker_listener(STATE.selectedTag, STATE.selectedType)
+    xclass.listener(STATE.selectedTag, STATE.selectedType)
     UTIL.observer(xclass)
     LISTENER.hash(xclass)
 })()
