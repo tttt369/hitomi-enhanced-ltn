@@ -858,21 +858,19 @@
                 className = '',
             } = options;
 
-            let res = ""
+            const res = []
 
             if (!dict || dict.length === 0) {
                 return '<a>N/A</a>';
             }
 
             for (const item of dict) {
-                const text = onlyOne ? item.text : `${item.text}, `
-                const href = item.url
                 const classAttr = className ? ` class="${className}"` : '';
-                res += `<a${classAttr} href="${href}">${text}</a>`;
-                if (onlyOne) break 
+                res.push(`<a${classAttr} href="${item.url}">${item.text}</a>`)
+                if (onlyOne) return res[0]
             }
 
-            return res
+            return res.join(', ')
         },
         table_row: function (table, label, contentHtml, containerClass = '') {
             const finalContent = containerClass 
@@ -1048,19 +1046,52 @@
                 pageContainer.appendChild(a);
             })
         },
-        viewer_header: function(viewer, idJs) {
-            viewer.aTitle.textContent = idJs.title[0]
+        viewer: function(viewer, idJs) {
+            function update_active_button_state(containers, activeText) {
+                containers.forEach(container => {
+                    const buttons = container.querySelectorAll("button");
+                    buttons.forEach(btn => {
+                        if (btn.textContent === String(activeText)) {
+                            btn.style.color = "var(--dimWhite)";
+                            btn.style.fontWeight = 'bold';
+                        } else {
+                            btn.style.color = "";
+                            btn.style.fontWeight = '';
+                        }
+                    });
+                });
+            }
+            function render(container, pictures) {
+                const fragment = document.createDocumentFragment();
+                pictures.forEach((picture, idx) => {
+                    const a = document.createElement("a")
+                    a.href = `reader/${id}.html#${idx + 1}`
+
+                    const img = document.createElement("img");
+                    img.className = "lazy";
+                    img.src = UTIL.decrypt_picture(picture)
+
+                    a.appendChild(img)
+                    fragment.appendChild(a);
+                    container.appendChild(fragment);
+                })
+            }
+
+            const id = UTIL.get_hash('id')
+
+            viewer.aTitle.textContent = idJs.title[0].text
 
             const artists = this.atag_for_table(idJs.artists)
             viewer.aArtist.insertAdjacentHTML(
                 'beforeend',
-                artists.join('')
+                artists
             );
+
+            viewer.imgThumbnail.src = UTIL.decrypt_picture(idJs.pictures[0])
 
             this.table_row(viewer.table, "language", this.atag_for_table(idJs.language));
             this.table_row(viewer.table, "type", this.atag_for_table(idJs.type));
             this.table_row(viewer.table, "series", this.atag_for_table(idJs.parodys));
-
             if (idJs.tags && idJs.tags.length) {
                 this.table_row(
                     viewer.table,
@@ -1073,9 +1104,30 @@
                 this.table_row(
                     viewer.table,
                     "characters",
-                    this.atag_for_table(idJs.parodys, { className: "BadgeBlue" }),
+                    this.atag_for_table(idJs.characters, { className: "BadgeBlue" }),
                     "CardTagsContainer"
                 );
+            }
+
+            const pictures = idJs.pictures
+            const step = CONFIG.viewerImagePerPage;
+            for (let i = 0; i < pictures.length; i += step) {
+                const pageNum = Math.floor(i / step) + 1;
+                const batch = pictures.slice(i, i + step);
+
+                xclass.divPages.forEach((divPage, idx) => {
+                    const btn = document.createElement("button");
+                    btn.textContent = pageNum;
+                    btn.type = "button";
+
+                    if (!idx) render(xclass.divImageContainer, batch);
+                    btn.addEventListener("click", () => {
+                        update_active_button_state(xclass.divPages, pageNum);
+                        render(xclass.divImageContainer, batch);
+                    });
+
+                    divPage.appendChild(btn);
+                });
             }
         }
     }
@@ -1563,6 +1615,7 @@
             this.divRelatedContainer = document.querySelector("div.RelatedContainer");
             this.divPages = document.querySelectorAll("div.Page");
             this.table = document.querySelector("table");
+            this.imgThumbnail = document.querySelector("img.Thumbnail")
         }
 
         init() {}
@@ -1575,6 +1628,8 @@
             else idJs = await FETCH.parsed_id_js(id)
 
             if (!(idJs || Object.keys(idJs).length)) return
+
+            CREATE.viewer(this, idJs)
         }
     }
 
@@ -1870,6 +1925,7 @@ input:focus {
     padding: 0.35em 0.65em;
     font-size: 0.75em;
     font-weight: 700;
+    color: var(--white);
 }
 
 .BadgeBlue, .BadgeGreen, .BadgeRed {
@@ -2393,6 +2449,7 @@ a {
 `,
         viewer: `
 <div class="HeaderContainer">
+    <img class="Thumbnail"></img>
     <div class="HeaderInfoContainer">
         <a class="Title"></a>
         <a class="Artist"></a>
