@@ -5,7 +5,6 @@
 // @grant        GM_registerMenuCommand
 // @match        https://hitomi.la/robots.txt
 // @require      https://raw.github.com/emn178/js-sha256/master/build/sha256.min.js
-// @require      https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.3.2/lazysizes.min.js
 // ==/UserScript==
 
 (async function() {
@@ -35,6 +34,7 @@
                 characters: [],
                 parodys: [],
                 tags: [],
+                related: [],
                 pictures: [],
                 id: "",
             }
@@ -78,6 +78,9 @@
             }
             if (info.files) {
                 res.pictures = [...info.files]
+            }
+            if (info.related) {
+                res.related = [...info.related]
             }
 
             res.id = info.id
@@ -315,10 +318,13 @@
                 if (CONFIG.maxPage >= 1 && CONFIG.maxPage < num) {
                     return false;
                 }
-                if (CONFIG.filterNA.artist && !idJs.artists.length) {
+                if (CONFIG.filterNaArtist && !idJs.artists.length) {
                     return false;
                 }
-                if (CONFIG.filterNA.tag && !idJs.tags.length) {
+                if (CONFIG.filterNaTag && !idJs.tags.length) {
+                    return false;
+                }
+                if (CONFIG.filterNaSeries && !idJs.parodys.length) {
                     return false;
                 }
                 return true;
@@ -368,7 +374,7 @@
 
             return url.replace(/\/\/..?\.(?:gold-usergeneratedcontent\.net|hitomi\.la)\//, '//' + subdomain + '.' + STATE.domain + '/');
         },
-        observer: function observer(xclass) {
+        observer: function observer() {
             const observer = new IntersectionObserver(async (entries) => {
                 const entry = entries[0];
 
@@ -379,8 +385,6 @@
 
                     observer.unobserve(entry.target);
 
-                    xclass.load();
-
                     observer.observe(entry.target);
                 }
 
@@ -390,7 +394,8 @@
                 threshold: 0
             });
 
-            observer.observe(document.querySelector("#scrollSentinel"));
+            const sentinel = document.querySelector("#scrollSentinel")
+            if (sentinel) observer.observe(sentinel);
         },
         get_hash: function(param) {
             const hash = window.location.hash; 
@@ -399,14 +404,6 @@
             const page = searchParams.get(param);
 
             return Number(page)
-        },
-        get_query: function() {
-            const hash = window.location.hash; 
-            const paramsString = hash.split('?')[1]; 
-            const searchParams = new URLSearchParams(paramsString);
-            const query = searchParams.get('search');
-
-            return query
         },
         load_default_query: function (divContainer, actualInput) {
             CONFIG.defaultQuery.split(/\s+/).forEach(query => {
@@ -419,7 +416,7 @@
         search: function() {
             divSearchWindow.addEventListener('click', (e) => {
                 if (e.target.closest(searchButtonName)) {
-                    xclass.init()
+                    SEARCH.search_post_process(divSearchInput, actualInput)
                     window.location.hash = `/?search=${STATE.term}`
                 }
                 else if (e.target.closest('.bi-x-circle-fill')){
@@ -438,6 +435,7 @@
                 else if (e.target.closest(eyeContainerName)) {
                     if (STATE.isPickerActive) {
                         eyeContainer.style.backgroundColor = 'transparent';
+                        eyeText.style.color = 'var(--dimWhite)'
 
                         STATE.selectedTag.forEach(tag => {
                             tag.style.border = ""
@@ -596,9 +594,61 @@
                 }
             })
         },
-        hash: function(xclass) {
+        hash: function() {
             window.addEventListener('hashchange', function() {
-                xclass.load()
+                STATE.fetching  = true
+
+                const hash = window.location.hash
+                const name = STATE.class.constructor.name;
+
+                if (hash.includes("/?id=")) {
+                    if (name !== "Viewer") {
+                        divMain.innerHTML = HTML.viewer
+                        styleMain.textContent = CSS.viewer
+                        STATE.class = new Viewer();
+                    }
+
+                    STATE.class.load();
+                }
+                else if(hash.includes("/?page=")) {
+                    if (name !== "Gallery") {
+                        divMain.innerHTML = HTML.gallery
+                        styleMain.textContent = CSS.gallery
+                        STATE.class = new Gallery();
+
+                        STATE.class.init()
+                        STATE.class.listener(STATE.selectedTag, STATE.selectedType)
+                        UTIL.observer()
+                    }
+
+                    STATE.class.load()
+                } 
+                else if(hash.includes("/?search=")) {
+                    if (name !== "Gallery") {
+                        divMain.innerHTML = HTML.gallery
+                        styleMain.textContent = CSS.gallery
+                        STATE.class = new Gallery();
+
+                        STATE.class.listener(STATE.selectedTag, STATE.selectedType)
+                        UTIL.observer()
+                    }
+
+                    STATE.class.init()
+                    STATE.class.load()
+                }
+                else {
+                    if (name !== "Gallery") {
+                        divMain.innerHTML = HTML.gallery
+                        styleMain.textContent = CSS.gallery
+                        STATE.class = new Gallery();
+
+                        STATE.class.init()
+                        STATE.class.listener(STATE.selectedTag, STATE.selectedType)
+                        UTIL.observer()
+                    }
+
+                    STATE.class.load()
+                }
             }, false);
         },
         nav_bar: function() {
@@ -845,7 +895,15 @@
 
                     const aTag = document.createElement('a');
                     aTag.className = 'BadgeBlue';
-                    aTag.textContent = tag.text
+
+                    const match = decodeURIComponent(tag.url).match(/.*\/(.*):/);
+                    if (match) {
+                        if (match[1] === "female") aTag.textContent = `♀ ${tag.text}`
+                        else aTag.textContent = `♂ ${tag.text}`
+                    } else {
+                        aTag.textContent = tag.text
+                    }
+
                     aTag.href = tag.url
 
                     container.appendChild(aTag);
@@ -897,8 +955,10 @@
 
                 const aCardImg = clone.querySelector('.CardImageUrl');
                 aCardImg.href = idJs.title[0].url;
+
                 const img = aCardImg.querySelector('img');
                 img.src = UTIL.decrypt_picture(idJs.pictures[0]).replace("hitomi.la", STATE.domain);
+                img.loading = "lazy";
 
                 const table = clone.querySelector('table');
                 this.table_row(table, "language", this.atag_for_table(idJs.language, {onlyOne: true}));
@@ -1046,7 +1106,7 @@
                 pageContainer.appendChild(a);
             })
         },
-        viewer: function(viewer, idJs) {
+        viewer: async function(viewer, idJs) {
             function update_active_button_state(containers, activeText) {
                 containers.forEach(container => {
                     const buttons = container.querySelectorAll("button");
@@ -1062,14 +1122,16 @@
                 });
             }
             function render(container, pictures) {
+                container.innerHTML = ""
+
                 const fragment = document.createDocumentFragment();
                 pictures.forEach((picture, idx) => {
                     const a = document.createElement("a")
                     a.href = `reader/${id}.html#${idx + 1}`
 
                     const img = document.createElement("img");
-                    img.className = "lazy";
                     img.src = UTIL.decrypt_picture(picture)
+                    img.loading = "lazy";
 
                     a.appendChild(img)
                     fragment.appendChild(a);
@@ -1115,19 +1177,47 @@
                 const pageNum = Math.floor(i / step) + 1;
                 const batch = pictures.slice(i, i + step);
 
-                xclass.divPages.forEach((divPage, idx) => {
+                viewer.divPages.forEach((divPage, idx) => {
                     const btn = document.createElement("button");
                     btn.textContent = pageNum;
                     btn.type = "button";
 
-                    if (!idx) render(xclass.divImageContainer, batch);
+                    if (!(i+idx)) render(viewer.divImageContainer, batch);
                     btn.addEventListener("click", () => {
-                        update_active_button_state(xclass.divPages, pageNum);
-                        render(xclass.divImageContainer, batch);
+                        update_active_button_state(viewer.divPages, pageNum);
+                        render(viewer.divImageContainer, batch);
                     });
 
                     divPage.appendChild(btn);
                 });
+            }
+
+            for (const rId of idJs.related) {
+                const clone = viewer.cardTemplate.content.cloneNode(true);
+
+                const cardImage = clone.querySelector(".CardImage")
+                const cardTitle = clone.querySelector(".CardTitle")
+                const pageBadge = clone.querySelector(".page.BadgeGrey")
+                const cardTagsC = clone.querySelector(".CardTagsContainer")
+                const table = clone.querySelector("table")
+
+                const ridJs = await FETCH.parsed_id_js(rId)
+
+                cardImage.src = UTIL.decrypt_picture(ridJs.pictures[0]).replace("hitomi.la", STATE.domain);
+
+                cardTitle.textContent = ridJs.title[0].text;
+                cardTitle.href = ridJs.title[0].url;
+
+                this.table_row(table, "language", this.atag_for_table(ridJs.language, {onlyOne: true}));
+                this.table_row(table, "type", this.atag_for_table(ridJs.type, {onlyOne: true}));
+                this.table_row(table, "artists", this.atag_for_table(ridJs.artists, {onlyOne: true}));
+                this.table_row(table, "series", this.atag_for_table(ridJs.parodys, {onlyOne: true}));
+
+                pageBadge.textContent = `${ridJs.pictures.length}p`;
+
+                this.tags(ridJs.tags, cardTagsC);
+
+                viewer.divRelatedContainer.appendChild(clone);
             }
         }
     }
@@ -1448,7 +1538,7 @@
             temp += `${tagQuery} ${inputQuery}`
 
             if (shouldDefQuery) temp += ` ${clean_text(CONFIG.defaultQuery)}`
-            if (shouldQuery) temp += ` ${clean_text(UTIL.get_query())}`
+            if (shouldQuery) temp += ` ${clean_text(UTIL.get_hash("search"))}`
 
             res = merge_text(temp)
 
@@ -1546,9 +1636,8 @@
                 } else if (title) {
                     e.preventDefault();
 
-                    divMain.innerHTML = HTML.viewer
-                    styleMain.textContent = CSS.viewer
-                    xclass = new Viewer();
+                    const card = e.target.closest(this.cardName)
+                    window.location.hash = `/?id=${card.dataset.id}`;
                 }
             })
 
@@ -1609,13 +1698,14 @@
             this.divImageContainer = document.querySelector("div.ImageContainer");
             this.divHeaderInfoContainer = document.querySelector("div.HeaderInfoContainer");
             this.divInfo = document.querySelector("div.Info");
+            this.table = document.querySelector("table")
             this.aArtist = document.querySelector("a.Artist");
             this.aTitle = document.querySelector("a.Title");
             this.divHeaderContainer = document.querySelector("div.HeaderContainer");
             this.divRelatedContainer = document.querySelector("div.RelatedContainer");
             this.divPages = document.querySelectorAll("div.Page");
-            this.table = document.querySelector("table");
             this.imgThumbnail = document.querySelector("img.Thumbnail")
+            this.cardTemplate = document.querySelector("template#Card")
         }
 
         init() {}
@@ -1629,7 +1719,7 @@
 
             if (!(idJs || Object.keys(idJs).length)) return
 
-            CREATE.viewer(this, idJs)
+            await CREATE.viewer(this, idJs)
         }
     }
 
@@ -1645,12 +1735,18 @@
         picPreviewPerPageKey: "picPreviewPerPage",
         cardWidthKey: "cardWidth",
         cardWrapWidthKey: "cardWrapWidth",
+        filterNaArtistKey: "filterNaArtist",
+        filterNaTagKey: "filterNaTag",
+        filterNaSeriesKey: "filterNaSeries",
     }
 
     const CONFIG = {
         infScroll: true,
         incrementTag: false,
         useCustomViewer: true,
+        filterNaArtist: false,
+        filterNaTag: false,
+        filterNaSeries: false,
         minPage: 0,
         maxPage: 0,
         trialLimit: 5,
@@ -1661,10 +1757,6 @@
         cardWidth: 220,
         cardWrapWidth: 190,
         defaultQuery: "",
-        filterNA: {
-            artist: false,
-            tag: false,
-        }
     }
 
     const STATE = {
@@ -1684,7 +1776,8 @@
         idJsObj: {},
         indexObj: {},
         randomUsed: new Set(),
-        gg: new Function()
+        gg: new Function(),
+        class: undefined
     }
 
     const CSS = {
@@ -1703,6 +1796,12 @@
     --cardWrapWidth: 190px;
 }
 
+@media (max-width: 700px) {
+    .ContentContainer {
+        margin: 0px;
+        background-color: hsl(0, 0%, 16%);
+    }
+}
 
 input, svg {
     color: var(--white);
@@ -2069,8 +2168,8 @@ span svg {
     color: var(--white);
     background-color: hsl(0, 0%, 10%);
     border-radius: var(--radius);
-    gap: 20px;
-    margin: 10px;
+    gap: 10px;
+    margin: 5px;
 }
 
 .CardTableContainer {
@@ -2220,6 +2319,7 @@ a {
     gap: 5px;
     margin: 5px;
     justify-content: space-around;
+    width: 100%;
 }
 
 
@@ -2320,6 +2420,9 @@ a {
         <div class="Setting">
             <label><input type="checkbox" id="${STORAGE.infScrollKey}"> infScroll</label>
             <label><input type="checkbox" id="${STORAGE.incrementTagKey}"> incrementTag</label>
+            <label><input type="checkbox" id="${STORAGE.filterNaArtistKey}"> filterNaArtist</label>
+            <label><input type="checkbox" id="${STORAGE.filterNaTagKey}"> filterNaTag</label>
+            <label><input type="checkbox" id="${STORAGE.filterNaSeriesKey}"> filterNaSeries</label>
 
             <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.cardWidthKey}" placeholder="cardWidth: ${CONFIG.cardWidth}">
             <input class="SearchInput numeric" type="text" inputmode="numeric" id="${STORAGE.cardWrapWidthKey}" placeholder="cardWrapWidth: ${CONFIG.cardWrapWidth}">
@@ -2463,6 +2566,18 @@ a {
 <div class="Page"></div>
 <a class="Header">Related Contents</a>
 <div class="RelatedContainer"></div>
+
+<template id="Card">
+    <div class="Card">
+        <img class="CardImage" loading="lazy"></img>
+        <div class="CardTableContainer">
+            <a class="CardTitle"></a>
+            <table></table>
+            <a class="page BadgeGrey"></a>
+            <div class="CardTagsContainer"></div>
+        </div>
+    </div>
+</template>
         `,
     }
 
@@ -2520,23 +2635,22 @@ a {
     LISTENER.suggestion(divSearchInput, actualInput, divSuggestionC)
     LISTENER.suggestion(divDefaultSearchInput, defaultActualInput, divDefaultSuggestionC)
     LISTENER.order()
+    LISTENER.hash()
 
-    let xclass
     const hash = window.location.hash
-
     if (hash.includes("/?id=")) {
         divMain.innerHTML = HTML.viewer
         styleMain.textContent = CSS.viewer
-        xclass = new Viewer();
-    } else {
+        STATE.class = new Viewer();
+    }
+    else {
         divMain.innerHTML = HTML.gallery
         styleMain.textContent = CSS.gallery
-        xclass = new Gallery();
+        STATE.class = new Gallery();
     }
 
-    xclass.init()
-    xclass.load();
-    xclass.listener(STATE.selectedTag, STATE.selectedType)
-    UTIL.observer(xclass)
-    LISTENER.hash(xclass)
+    STATE.class.init()
+    STATE.class.load();
+    STATE.class.listener(STATE.selectedTag, STATE.selectedType)
+    UTIL.observer()
 })()
